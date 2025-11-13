@@ -210,16 +210,18 @@
             }
             }
             
-            // If target is null or off board, keep pillar where it was
-            if (target === null || !this.tiles[target]) {
+            // If target is null or invalid (off board), keep pillar where it was
+            if (target === null || target < 1 || target > this.numTiles) {
             this.pillars.add(pillarTile);
             return null;
             }
             
-            // Damage the target tile
+            // Damage the target tile (only if it has layers)
+            if (this.tiles[target] > 0) {
             this.tiles[target] -= 1;
+            }
             
-            // Always place pillar on target, even if tile is destroyed
+            // Always place pillar on target tile (indestructible)
             this.pillars.add(target);
             return target;
         }
@@ -564,6 +566,7 @@
             0: '#333333'
             };
             
+            // STEP 1: Draw all tiles first
             for (let tile = 1; tile <= game.numTiles; tile++) {
             const { x, y } = tileCoords[tile];
             const layers = game.tiles[tile];
@@ -598,52 +601,60 @@
             ctx.lineWidth = 2;
             ctx.stroke();
             
+            // Draw tile number
             ctx.fillStyle = 'black';
             ctx.font = '8px Arial';
             ctx.textAlign = 'center';
             ctx.fillText(tile.toString(), x, y - 10);
             
+            // Draw layer count
             if (layers > 0) {
                 ctx.font = 'bold 14px Arial';
+                ctx.fillStyle = 'black';
                 ctx.fillText(layers.toString(), x, y + 12);
             } else {
                 ctx.font = 'bold 14px Arial';
                 ctx.fillStyle = 'white';
                 ctx.fillText('X', x, y + 12);
             }
-            
-            if (tile === game.player1Pos) {
-                ctx.beginPath();
-                ctx.arc(x, y, 12, 0, 2 * Math.PI);
-                ctx.fillStyle = '#FF4444';
-                ctx.fill();
-                ctx.strokeStyle = 'white';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 10px Arial';
-                ctx.fillText('P1', x, y + 4);
             }
             
-            if (tile === game.player2Pos) {
-                ctx.beginPath();
-                ctx.arc(x, y, 12, 0, 2 * Math.PI);
-                ctx.fillStyle = '#4444FF';
-                ctx.fill();
-                ctx.strokeStyle = 'white';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 10px Arial';
-                ctx.fillText('P2', x, y + 4);
-            }
-            
-            // Draw pillars LAST so they appear on top of everything
+            // STEP 2: Draw pillars on top of tiles
+            for (let tile = 1; tile <= game.numTiles; tile++) {
             if (game.pillars.has(tile)) {
+                const { x, y } = tileCoords[tile];
                 ctx.font = '20px Arial';
+                ctx.textAlign = 'center';
                 ctx.fillText('🏛️', x, y - 15);
             }
             }
+            
+            // STEP 3: Draw players on top of everything
+            const { x: x1, y: y1 } = tileCoords[game.player1Pos];
+            ctx.beginPath();
+            ctx.arc(x1, y1, 12, 0, 2 * Math.PI);
+            ctx.fillStyle = '#FF4444';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('P1', x1, y1 + 4);
+            
+            const { x: x2, y: y2 } = tileCoords[game.player2Pos];
+            ctx.beginPath();
+            ctx.arc(x2, y2, 12, 0, 2 * Math.PI);
+            ctx.fillStyle = '#4444FF';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('P2', x2, y2 + 4);
         }, [game]);
         
         const handleCanvasClick = (e) => {
