@@ -136,16 +136,13 @@
             
             if (pushedTo) {
                 const opponentPos = player === 1 ? this.player2Pos : this.player1Pos;
-                
-                // Check if pillar hit opponent's tile
                 if (pushedTo === opponentPos) {
                 message += "Hit opponent! ";
+                }
                 
                 // Check if opponent's tile was destroyed by the pillar
                 if (this.tiles[opponentPos] === 0) {
-                    message += "Opponent's tile destroyed! ";
-                    // Game will end after player moves, checkGameOver will detect it
-                }
+                message += "Opponent's tile destroyed! ";
                 }
             }
             }
@@ -315,11 +312,9 @@
         }
         
         checkGameOver() {
-            // Check if either player is standing on a destroyed tile (layer 0)
             if (this.tiles[this.player1Pos] === 0) return 2;
             if (this.tiles[this.player2Pos] === 0) return 1;
             
-            // Check if current player has no valid moves (trapped)
             if (this.currentPlayer === 1 && this.getValidMoves(1).length === 0) return 2;
             if (this.currentPlayer === 2 && this.getValidMoves(2).length === 0) return 1;
             
