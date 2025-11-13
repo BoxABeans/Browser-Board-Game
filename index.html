@@ -172,52 +172,71 @@
             const isPointingUp = this.tileOrientations[pillarTile];
             const neighbors = this.adjacency[pillarTile] || [];
             
-            // Create a prioritized list of targets based on entry direction
+            // Always create a full list of all possible targets
             const targetCandidates = [];
             
             if (isPointingUp) {
-            // Triangle pointing up: try to exit through opposite side
+            // Triangle pointing up
             if (fromTile === pillarTile - 1 && neighbors.includes(fromTile)) {
-                // Entered from left, try right then top
+                // Entered from left edge - prioritize opposite exits
                 if (pillarRow + 1 < this.rowLayout.length) {
                 const nextRowStart = rowStarts[pillarRow + 1];
-                if (pillarCol + 1 < this.rowLayout[pillarRow + 1]) {
-                    targetCandidates.push(nextRowStart + pillarCol + 1);
+                const rightExit = nextRowStart + pillarCol + 1;
+                const centerExit = nextRowStart + pillarCol;
+                if (rightExit <= this.numTiles) targetCandidates.push(rightExit);
+                if (centerExit <= this.numTiles) targetCandidates.push(centerExit);
                 }
-                if (pillarCol < this.rowLayout[pillarRow + 1]) {
-                    targetCandidates.push(nextRowStart + pillarCol);
-                }
-                }
-                if (pillarTile + 1 <= this.numTiles && neighbors.includes(pillarTile + 1)) {
-                targetCandidates.push(pillarTile + 1);
-                }
+                if (neighbors.includes(pillarTile + 1)) targetCandidates.push(pillarTile + 1);
             } else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
-                // Entered from right, try left then top
+                // Entered from right edge - prioritize opposite exits
                 if (pillarRow + 1 < this.rowLayout.length) {
                 const nextRowStart = rowStarts[pillarRow + 1];
-                if (pillarCol < this.rowLayout[pillarRow + 1]) {
-                    targetCandidates.push(nextRowStart + pillarCol);
+                const leftExit = nextRowStart + pillarCol;
+                const rightExit = nextRowStart + pillarCol + 1;
+                if (leftExit <= this.numTiles) targetCandidates.push(leftExit);
+                if (rightExit <= this.numTiles) targetCandidates.push(rightExit);
                 }
+                if (neighbors.includes(pillarTile - 1)) targetCandidates.push(pillarTile - 1);
+            } else {
+                // Entered from point (top) - exit through base
+                if (neighbors.includes(pillarTile - 1)) targetCandidates.push(pillarTile - 1);
+                if (neighbors.includes(pillarTile + 1)) targetCandidates.push(pillarTile + 1);
+                if (pillarRow + 1 < this.rowLayout.length) {
+                const nextRowStart = rowStarts[pillarRow + 1];
                 if (pillarCol + 1 < this.rowLayout[pillarRow + 1]) {
                     targetCandidates.push(nextRowStart + pillarCol + 1);
                 }
+                if (pillarCol < this.rowLayout[pillarRow + 1]) {
+                    targetCandidates.push(nextRowStart + pillarCol);
                 }
-                if (pillarTile - 1 >= 1 && neighbors.includes(pillarTile - 1)) {
-                targetCandidates.push(pillarTile - 1);
-                }
-            } else {
-                // Entered from top, try base edges
-                if (pillarTile - 1 >= 1 && neighbors.includes(pillarTile - 1)) {
-                targetCandidates.push(pillarTile - 1);
-                }
-                if (pillarTile + 1 <= this.numTiles && neighbors.includes(pillarTile + 1)) {
-                targetCandidates.push(pillarTile + 1);
                 }
             }
             } else {
-            // Triangle pointing down: try to exit through opposite side
+            // Triangle pointing down
             if (fromTile === pillarTile - 1 && neighbors.includes(fromTile)) {
-                // Entered from left, try right then bottom
+                // Entered from left edge - prioritize opposite exits
+                if (pillarRow > 0) {
+                const prevRowStart = rowStarts[pillarRow - 1];
+                const rightExit = prevRowStart + pillarCol;
+                const leftExit = prevRowStart + Math.max(0, pillarCol - 1);
+                if (rightExit >= 1) targetCandidates.push(rightExit);
+                if (leftExit >= 1 && leftExit !== rightExit) targetCandidates.push(leftExit);
+                }
+                if (neighbors.includes(pillarTile + 1)) targetCandidates.push(pillarTile + 1);
+            } else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
+                // Entered from right edge - prioritize opposite exits
+                if (pillarRow > 0 && pillarCol > 0) {
+                const prevRowStart = rowStarts[pillarRow - 1];
+                const leftExit = prevRowStart + pillarCol - 1;
+                const rightExit = prevRowStart + pillarCol;
+                if (leftExit >= 1) targetCandidates.push(leftExit);
+                if (rightExit >= 1 && rightExit !== leftExit) targetCandidates.push(rightExit);
+                }
+                if (neighbors.includes(pillarTile - 1)) targetCandidates.push(pillarTile - 1);
+            } else {
+                // Entered from point (bottom) - exit through base
+                if (neighbors.includes(pillarTile - 1)) targetCandidates.push(pillarTile - 1);
+                if (neighbors.includes(pillarTile + 1)) targetCandidates.push(pillarTile + 1);
                 if (pillarRow > 0) {
                 const prevRowStart = rowStarts[pillarRow - 1];
                 if (pillarCol < this.rowLayout[pillarRow - 1]) {
@@ -227,52 +246,29 @@
                     targetCandidates.push(prevRowStart + pillarCol - 1);
                 }
                 }
-                if (pillarTile + 1 <= this.numTiles && neighbors.includes(pillarTile + 1)) {
-                targetCandidates.push(pillarTile + 1);
-                }
-            } else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
-                // Entered from right, try left then bottom
-                if (pillarRow > 0 && pillarCol > 0) {
-                const prevRowStart = rowStarts[pillarRow - 1];
-                if (pillarCol - 1 < this.rowLayout[pillarRow - 1]) {
-                    targetCandidates.push(prevRowStart + pillarCol - 1);
-                }
-                if (pillarCol < this.rowLayout[pillarRow - 1]) {
-                    targetCandidates.push(prevRowStart + pillarCol);
-                }
-                }
-                if (pillarTile - 1 >= 1 && neighbors.includes(pillarTile - 1)) {
-                targetCandidates.push(pillarTile - 1);
-                }
-            } else {
-                // Entered from bottom, try base edges
-                if (pillarTile - 1 >= 1 && neighbors.includes(pillarTile - 1)) {
-                targetCandidates.push(pillarTile - 1);
-                }
-                if (pillarTile + 1 <= this.numTiles && neighbors.includes(pillarTile + 1)) {
-                targetCandidates.push(pillarTile + 1);
-                }
             }
             }
             
-            // Add all remaining neighbors as fallback options (excluding fromTile)
+            // Add ALL remaining neighbors as fallback (excluding fromTile)
             for (const neighbor of neighbors) {
             if (neighbor !== fromTile && !targetCandidates.includes(neighbor)) {
                 targetCandidates.push(neighbor);
             }
             }
             
-            // Find first valid target (not occupied by pillar, within bounds)
+            // Find first valid target (in bounds, is a neighbor, no pillar there)
             let target = null;
             for (const candidate of targetCandidates) {
-            if (candidate >= 1 && candidate <= this.numTiles && 
-                neighbors.includes(candidate) && !this.pillars.has(candidate)) {
+            if (candidate >= 1 && 
+                candidate <= this.numTiles && 
+                neighbors.includes(candidate) && 
+                !this.pillars.has(candidate)) {
                 target = candidate;
                 break;
             }
             }
             
-            // If still no valid target, pillar stays in place (absolute last resort)
+            // Absolute last resort: if NO valid target exists, pillar stays but doesn't damage
             if (target === null) {
             this.pillars.add(pillarTile);
             return null;
@@ -283,7 +279,7 @@
             this.tiles[target] -= 1;
             }
             
-            // If target tile was destroyed (now has 0 layers), relocate pillar to random valid tile
+            // If target tile was destroyed, relocate pillar to random valid tile
             if (this.tiles[target] === 0) {
             const availableTiles = [];
             for (let i = 1; i <= this.numTiles; i++) {
@@ -305,7 +301,7 @@
             }
             }
             
-            // Target tile still has layers, place pillar there normally
+            // Target tile still has layers, place pillar there
             this.pillars.add(target);
             return target;
         }
