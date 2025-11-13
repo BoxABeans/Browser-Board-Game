@@ -170,94 +170,110 @@
             }
             
             const isPointingUp = this.tileOrientations[pillarTile];
-            let target = null;
-            
-            // Determine which edge the player entered from and calculate exit point
             const neighbors = this.adjacency[pillarTile] || [];
             
-            if (isPointingUp) {
-            // Triangle pointing up: base is at bottom, point at top
-            // Three edges: left-bottom, right-bottom, and top point
+            // Create a prioritized list of targets based on entry direction
+            const targetCandidates = [];
             
-            // Check if entering from bottom-left edge
+            if (isPointingUp) {
+            // Triangle pointing up: try to exit through opposite side
             if (fromTile === pillarTile - 1 && neighbors.includes(fromTile)) {
-                // Exit through right-bottom edge (or top if no right neighbor)
+                // Entered from left, try right then top
                 if (pillarRow + 1 < this.rowLayout.length) {
                 const nextRowStart = rowStarts[pillarRow + 1];
                 if (pillarCol + 1 < this.rowLayout[pillarRow + 1]) {
-                    target = nextRowStart + pillarCol + 1;
+                    targetCandidates.push(nextRowStart + pillarCol + 1);
+                }
+                if (pillarCol < this.rowLayout[pillarRow + 1]) {
+                    targetCandidates.push(nextRowStart + pillarCol);
                 }
                 }
-            }
-            // Check if entering from bottom-right edge
-            else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
-                // Exit through left-bottom edge (or top if no left neighbor)
+                if (pillarTile + 1 <= this.numTiles && neighbors.includes(pillarTile + 1)) {
+                targetCandidates.push(pillarTile + 1);
+                }
+            } else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
+                // Entered from right, try left then top
                 if (pillarRow + 1 < this.rowLayout.length) {
                 const nextRowStart = rowStarts[pillarRow + 1];
                 if (pillarCol < this.rowLayout[pillarRow + 1]) {
-                    target = nextRowStart + pillarCol;
+                    targetCandidates.push(nextRowStart + pillarCol);
+                }
+                if (pillarCol + 1 < this.rowLayout[pillarRow + 1]) {
+                    targetCandidates.push(nextRowStart + pillarCol + 1);
                 }
                 }
-            }
-            // Must be entering from top point (from row above)
-            else {
-                // Exit through base - try left first, then right
-                if (pillarCol > 0) {
-                target = pillarTile - 1;
-                } else {
-                target = pillarTile + 1;
+                if (pillarTile - 1 >= 1 && neighbors.includes(pillarTile - 1)) {
+                targetCandidates.push(pillarTile - 1);
+                }
+            } else {
+                // Entered from top, try base edges
+                if (pillarTile - 1 >= 1 && neighbors.includes(pillarTile - 1)) {
+                targetCandidates.push(pillarTile - 1);
+                }
+                if (pillarTile + 1 <= this.numTiles && neighbors.includes(pillarTile + 1)) {
+                targetCandidates.push(pillarTile + 1);
                 }
             }
             } else {
-            // Triangle pointing down: point is at bottom, base at top
-            // Three edges: left-top, right-top, and bottom point
-            
-            // Check if entering from top-left edge
+            // Triangle pointing down: try to exit through opposite side
             if (fromTile === pillarTile - 1 && neighbors.includes(fromTile)) {
-                // Exit through right-top edge (or bottom if no right neighbor)
+                // Entered from left, try right then bottom
                 if (pillarRow > 0) {
                 const prevRowStart = rowStarts[pillarRow - 1];
                 if (pillarCol < this.rowLayout[pillarRow - 1]) {
-                    target = prevRowStart + pillarCol;
+                    targetCandidates.push(prevRowStart + pillarCol);
+                }
+                if (pillarCol > 0 && pillarCol - 1 < this.rowLayout[pillarRow - 1]) {
+                    targetCandidates.push(prevRowStart + pillarCol - 1);
                 }
                 }
-            }
-            // Check if entering from top-right edge
-            else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
-                // Exit through left-top edge (or bottom if no left neighbor)
+                if (pillarTile + 1 <= this.numTiles && neighbors.includes(pillarTile + 1)) {
+                targetCandidates.push(pillarTile + 1);
+                }
+            } else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
+                // Entered from right, try left then bottom
                 if (pillarRow > 0 && pillarCol > 0) {
                 const prevRowStart = rowStarts[pillarRow - 1];
                 if (pillarCol - 1 < this.rowLayout[pillarRow - 1]) {
-                    target = prevRowStart + pillarCol - 1;
+                    targetCandidates.push(prevRowStart + pillarCol - 1);
+                }
+                if (pillarCol < this.rowLayout[pillarRow - 1]) {
+                    targetCandidates.push(prevRowStart + pillarCol);
                 }
                 }
-            }
-            // Must be entering from bottom point (from row below)
-            else {
-                // Exit through base - try left first, then right
-                if (pillarCol > 0) {
-                target = pillarTile - 1;
-                } else {
-                target = pillarTile + 1;
+                if (pillarTile - 1 >= 1 && neighbors.includes(pillarTile - 1)) {
+                targetCandidates.push(pillarTile - 1);
+                }
+            } else {
+                // Entered from bottom, try base edges
+                if (pillarTile - 1 >= 1 && neighbors.includes(pillarTile - 1)) {
+                targetCandidates.push(pillarTile - 1);
+                }
+                if (pillarTile + 1 <= this.numTiles && neighbors.includes(pillarTile + 1)) {
+                targetCandidates.push(pillarTile + 1);
                 }
             }
             }
             
-            // If calculated target is invalid or has a pillar, try any valid neighbor as fallback
-            if (target === null || target < 1 || target > this.numTiles || 
-                !neighbors.includes(target) || this.pillars.has(target)) {
-            // Find first valid neighbor that isn't the fromTile and doesn't have a pillar
+            // Add all remaining neighbors as fallback options (excluding fromTile)
             for (const neighbor of neighbors) {
-                if (neighbor !== fromTile && neighbor >= 1 && neighbor <= this.numTiles && 
-                    !this.pillars.has(neighbor)) {
-                target = neighbor;
-                break;
-                }
+            if (neighbor !== fromTile && !targetCandidates.includes(neighbor)) {
+                targetCandidates.push(neighbor);
             }
             }
             
-            // If still no valid target, keep pillar where it was
-            if (target === null || target < 1 || target > this.numTiles || this.pillars.has(target)) {
+            // Find first valid target (not occupied by pillar, within bounds)
+            let target = null;
+            for (const candidate of targetCandidates) {
+            if (candidate >= 1 && candidate <= this.numTiles && 
+                neighbors.includes(candidate) && !this.pillars.has(candidate)) {
+                target = candidate;
+                break;
+            }
+            }
+            
+            // If still no valid target, pillar stays in place (absolute last resort)
+            if (target === null) {
             this.pillars.add(pillarTile);
             return null;
             }
@@ -271,7 +287,6 @@
             if (this.tiles[target] === 0) {
             const availableTiles = [];
             for (let i = 1; i <= this.numTiles; i++) {
-                // Find tiles that are alive, not player positions, and don't have pillars
                 if (this.tiles[i] > 0 && 
                     i !== this.player1Pos && 
                     i !== this.player2Pos && 
@@ -280,13 +295,11 @@
                 }
             }
             
-            // Place pillar on random available tile, or keep on destroyed tile if no options
             if (availableTiles.length > 0) {
                 const randomTile = availableTiles[Math.floor(Math.random() * availableTiles.length)];
                 this.pillars.add(randomTile);
                 return randomTile;
             } else {
-                // No available tiles, keep on destroyed tile
                 this.pillars.add(target);
                 return target;
             }
