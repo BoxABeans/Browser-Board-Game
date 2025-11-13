@@ -13,8 +13,7 @@
     <div id="root"></div>
     
     <script type="text/babel">
-        import React, { useState, useEffect, useRef } from 'react';
-        import { Play, Settings, HelpCircle, Info, Home, RotateCcw } from 'lucide-react';
+        const { useState, useEffect, useRef } = React;
 
         // Game Logic Class
         class TrifectaGame {
@@ -248,7 +247,7 @@
         }
 
         // Main App Component
-        export default function TrifectaApp() {
+        function TrifectaApp() {
         const [screen, setScreen] = useState('menu');
         const [game, setGame] = useState(null);
         const [message, setMessage] = useState('');
