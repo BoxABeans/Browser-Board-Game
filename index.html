@@ -243,11 +243,13 @@
             }
             }
             
-            // If calculated target is invalid, try any valid neighbor as fallback
-            if (target === null || target < 1 || target > this.numTiles || !neighbors.includes(target)) {
-            // Find first valid neighbor that isn't the fromTile
+            // If calculated target is invalid or has a pillar, try any valid neighbor as fallback
+            if (target === null || target < 1 || target > this.numTiles || 
+                !neighbors.includes(target) || this.pillars.has(target)) {
+            // Find first valid neighbor that isn't the fromTile and doesn't have a pillar
             for (const neighbor of neighbors) {
-                if (neighbor !== fromTile && neighbor >= 1 && neighbor <= this.numTiles) {
+                if (neighbor !== fromTile && neighbor >= 1 && neighbor <= this.numTiles && 
+                    !this.pillars.has(neighbor)) {
                 target = neighbor;
                 break;
                 }
@@ -255,7 +257,7 @@
             }
             
             // If still no valid target, keep pillar where it was
-            if (target === null || target < 1 || target > this.numTiles) {
+            if (target === null || target < 1 || target > this.numTiles || this.pillars.has(target)) {
             this.pillars.add(pillarTile);
             return null;
             }
