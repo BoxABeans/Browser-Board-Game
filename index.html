@@ -210,18 +210,18 @@
             }
             }
             
-            if (target === null || !this.tiles[target] || this.tiles[target] === 0) {
+            // If target is null or off board, keep pillar where it was
+            if (target === null || !this.tiles[target]) {
+            this.pillars.add(pillarTile);
             return null;
             }
             
+            // Damage the target tile
             this.tiles[target] -= 1;
             
-            if (this.tiles[target] > 0) {
+            // Always place pillar on target, even if tile is destroyed
             this.pillars.add(target);
             return target;
-            }
-            
-            return null;
         }
         
         checkGameOver() {
@@ -612,11 +612,6 @@
                 ctx.fillText('X', x, y + 12);
             }
             
-            if (game.pillars.has(tile)) {
-                ctx.font = '16px Arial';
-                ctx.fillText('🏛️', x, y - 20);
-            }
-            
             if (tile === game.player1Pos) {
                 ctx.beginPath();
                 ctx.arc(x, y, 12, 0, 2 * Math.PI);
@@ -641,6 +636,12 @@
                 ctx.fillStyle = 'white';
                 ctx.font = 'bold 10px Arial';
                 ctx.fillText('P2', x, y + 4);
+            }
+            
+            // Draw pillars LAST so they appear on top of everything
+            if (game.pillars.has(tile)) {
+                ctx.font = '20px Arial';
+                ctx.fillText('🏛️', x, y - 15);
             }
             }
         }, [game]);
