@@ -221,7 +221,32 @@
             this.tiles[target] -= 1;
             }
             
-            // Always place pillar on target tile (indestructible)
+            // If target tile was destroyed (now has 0 layers), relocate pillar to random valid tile
+            if (this.tiles[target] === 0) {
+            const availableTiles = [];
+            for (let i = 1; i <= this.numTiles; i++) {
+                // Find tiles that are alive, not player positions, and don't have pillars
+                if (this.tiles[i] > 0 && 
+                    i !== this.player1Pos && 
+                    i !== this.player2Pos && 
+                    !this.pillars.has(i)) {
+                availableTiles.push(i);
+                }
+            }
+            
+            // Place pillar on random available tile, or keep on destroyed tile if no options
+            if (availableTiles.length > 0) {
+                const randomTile = availableTiles[Math.floor(Math.random() * availableTiles.length)];
+                this.pillars.add(randomTile);
+                return randomTile;
+            } else {
+                // No available tiles, keep on destroyed tile
+                this.pillars.add(target);
+                return target;
+            }
+            }
+            
+            // Target tile still has layers, place pillar there normally
             this.pillars.add(target);
             return target;
         }
