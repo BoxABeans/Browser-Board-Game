@@ -1,819 +1,716 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trifecta - Strategic Board Game</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Triangular Hex Grid — Move Left / Right / Back</title>
+    <style>
+        :root {
+            --bg: #111;
+            --card: #0f1720;
+            --stroke: #07211a;
+            --tri-fill: #ffffff;
+            --player: #ffcf33;
+            --edge-highlight: #88f;
+            --invalid: #d33;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: linear-gradient(180deg,#0b0f12,#081219);
+            font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;
+            color: #ddd
+        }
+
+        .wrap {
+            display: flex;
+            gap: 18px;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .board {
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.2));
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+        }
+
+        svg {
+            display: block
+        }
+
+        .controls {
+            max-width: 360px;
+            padding: 14px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+            border: 1px solid rgba(255,255,255,0.02);
+        }
+
+            .controls h2 {
+                margin: 2px 0 8px 0;
+                font-size: 18px
+            }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0
+        }
+
+        button {
+            flex: 1;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 0;
+            background: #163d3a;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+            button:active {
+                transform: translateY(1px)
+            }
+
+        .info {
+            font-size: 13px;
+            color: #a9b7b7
+        }
+
+        .legend {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 10px
+        }
+
+            .legend span {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px
+            }
+
+        .swatch {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            display: inline-block
+        }
+
+        .sw-player {
+            background: var(--player)
+        }
+
+        .sw-tri {
+            background: var(--tri-fill);
+            border: 2px solid var(--stroke)
+        }
+
+        .sw-possible {
+            background: var(--edge-highlight)
+        }
+
+        .message {
+            margin-top: 12px;
+            color: #ffd3a6;
+            font-weight: 600
+        }
+
+        footer {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #97a7a7
+        }
+    </style>
 </head>
 <body>
-    <div id="root"></div>
-    
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+    <div class="wrap">
+        <div class="board" id="boardContainer">
+            <!-- svg will be injected -->
+        </div>
 
-        // Game Logic Class
-        class TrifectaGame {
-        constructor(numPillars = 4, initialLayers = 3) {
-            this.rowLayout = [7, 9, 11, 11, 9, 7];
-            this.numTiles = this.rowLayout.reduce((a, b) => a + b, 0);
-            this.numPillars = numPillars;
-            this.initialLayers = initialLayers;
-            
-            this.tiles = {};
-            for (let i = 1; i <= this.numTiles; i++) {
-            this.tiles[i] = initialLayers;
+        <div class="controls">
+            <h2>Controls</h2>
+            <div class="info">Select an edge to move.<br><small>For triangles pointing up: Back = down edge. For triangles pointing down: Back = up edge.</small></div>
+            <div class="btn-row">
+                <button id="leftBtn">← Left</button>
+                <button id="backBtn">⤴ Back</button>
+                <button id="rightBtn">Right →</button>
+            </div>
+            <div class="legend">
+                <span><i class="swatch" style="background:#7da7d9"></i>Player 1</span>
+                <span><i class="swatch" style="background:#ff5e5e"></i>Player 2</span>
+            </div>
+            <div class="tile legend">
+                <span><i class="swatch" style="background:#ff8500"></i>2 Layers left</span>
+                <span><i class="swatch" style="background:#ff0000"></i>1 Layer Left</span>
+                <span><i class="swatch" style="background:#330f0a"></i>Empty Tile</span>
+            </div>
+            <div class="message" id="message">Click a direction to move.</div>
+            <footer>Grid: 48 triangular tiles arranged in a hex-ish shape.</footer>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            // Configuration
+            const rows = [7, 9, 11, 11, 9, 7];
+            const side = 60;
+            const h = side * Math.sqrt(3) / 2;
+            const stroke = 4;
+
+            // Adjusted horizontal spacing for no overlap
+            const maxRowLen = Math.max(...rows);
+            const svgW = (maxRowLen - 1) * (side * 0.75) + side + 80;
+            const svgH = rows.length * h + 160;
+            const centerX = svgW / 2;
+            const startY = 60;
+
+            const triangles = [];
+
+            // For each row compute starting x to center the row
+            const rowYs = [];
+            let y = startY;
+            const vStep = h * 1.25; // vertical step between centroids
+            for (let r = 0; r < rows.length; r++) {
+                rowYs.push(y);
+                y += vStep;
             }
-            
-            this.player1Pos = 1;
-            this.player2Pos = this.numTiles;
-            this.pillars = new Set();
-            this.currentPlayer = 1;
-            this.tileOrientations = {};
-            this.tileCoords = {};
-            
-            this.calculateOrientations();
-            this.adjacency = this.buildTriangularGrid();
-            this.placePillars();
-        }
-        
-        calculateOrientations() {
-            let tileNum = 1;
-            for (let rowIdx = 0; rowIdx < this.rowLayout.length; rowIdx++) {
-            const rowSize = this.rowLayout[rowIdx];
-            for (let pos = 0; pos < rowSize; pos++) {
-                this.tileOrientations[tileNum] = (pos % 2 === 0);
-                tileNum++;
-            }
-            }
-        }
-        
-        buildTriangularGrid() {
-            const adjacency = {};
-            const rowStarts = [1];
-            
-            for (let i = 0; i < this.rowLayout.length - 1; i++) {
-            rowStarts.push(rowStarts[rowStarts.length - 1] + this.rowLayout[i]);
-            }
-            
-            for (let rowIdx = 0; rowIdx < this.rowLayout.length; rowIdx++) {
-            const rowSize = this.rowLayout[rowIdx];
-            const rowStart = rowStarts[rowIdx];
-            
-            for (let pos = 0; pos < rowSize; pos++) {
-                const current = rowStart + pos;
-                const neighbors = [];
-                const isPointingUp = this.tileOrientations[current];
-                
-                if (pos > 0) neighbors.push(current - 1);
-                if (pos < rowSize - 1) neighbors.push(current + 1);
-                
-                if (isPointingUp) {
-                if (rowIdx < this.rowLayout.length - 1) {
-                    const nextRowStart = rowStarts[rowIdx + 1];
-                    const nextRowSize = this.rowLayout[rowIdx + 1];
-                    const offset = Math.floor((nextRowSize - rowSize) / 2);
-                    const targetPos = pos + offset;
-                    
-                    if (targetPos >= 0 && targetPos < nextRowSize) {
-                    neighbors.push(nextRowStart + targetPos);
+
+            // Build triangles
+            for (let r = 0; r < rows.length; r++) {
+                const n = rows[r];
+                // The y position for the base of the triangles in this row
+                const baseY = rowYs[r];
+                const rowWidth = (n - 1) * (side * 0.75);
+                const startX = centerX - rowWidth / 2;
+                for (let c = 0; c < n; c++) {
+                    const cx = startX + c * (side * 0.75);
+                    const rowStartsUp = r < 3;
+                    const up = ((c + (rowStartsUp ? 0 : 1)) % 2 === 0);
+
+                    let p1, p2, p3;
+                    if (up) {
+                        // Base is at baseY, tip is above
+                        p1 = [cx - side / 2, baseY + h];
+                        p2 = [cx + side / 2, baseY + h];
+                        p3 = [cx, baseY];
+                    } else {
+                        // Base is at baseY, tip is below
+                        p1 = [cx - side / 2, baseY];
+                        p2 = [cx + side / 2, baseY];
+                        p3 = [cx, baseY + h];
                     }
+
+                    triangles.push({
+                        id: triangles.length,
+                        row: r,
+                        col: c,
+                        cx, cy: baseY, // you may want to update cy logic if needed elsewhere
+                        up,
+                        points: [p1, p2, p3],
+                        svg: null,
+                        layers: 2,
+                        isPillar: false,
+                        pillarLayers: 0
+                    });
                 }
+            }
+
+            // SVG setup
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("width", svgW);
+            svg.setAttribute("height", svgH);
+            svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+            svg.style.display = 'block';
+
+            const triGroup = document.createElementNS(svgNS, "g");
+            triGroup.setAttribute("transform", "translate(0,0)");
+            svg.appendChild(triGroup);
+
+            const player1Circle = document.createElementNS(svgNS, "circle");
+            player1Circle.setAttribute("r", side * 0.24);
+            player1Circle.setAttribute("fill", "#7da7d9");
+            player1Circle.setAttribute("stroke", "#000000");
+            player1Circle.setAttribute("stroke-width", 3);
+            svg.appendChild(player1Circle);
+
+            const player2Circle = document.createElementNS(svgNS, "circle");
+            player2Circle.setAttribute("r", side * 0.24);
+            player2Circle.setAttribute("fill", "#f69679");
+            player2Circle.setAttribute("stroke", "#000000");
+            player2Circle.setAttribute("stroke-width", 3);
+            svg.appendChild(player2Circle);
+
+            triangles.forEach(t => {
+                const poly = document.createElementNS(svgNS, "polygon");
+                poly.setAttribute("points", t.points.map(p => p.join(",")).join(" "));
+                poly.setAttribute("fill", "white");
+                poly.setAttribute("stroke", "#0b1816");
+                poly.setAttribute("stroke-width", stroke);
+                poly.setAttribute("vector-effect", "non-scaling-stroke");
+                poly.style.filter = "drop-shadow(0 2px 2px rgba(0,0,0,0.5))";
+                triGroup.appendChild(poly);
+                t.svg = poly;
+                poly.dataset.id = t.id;
+            });
+
+            document.getElementById('boardContainer').appendChild(svg);
+
+            // Centroid map for neighbor lookup
+            const centroidMap = new Map();
+            function keyFor(x, y) {
+                return (Math.round(x * 100) / 100) + "," + (Math.round(y * 100) / 100);
+            }
+            triangles.forEach(t => {
+                centroidMap.set(keyFor(t.cx, t.cy), t.id);
+            });
+
+            // Movement vectors
+            const leftVec = [-side * 0.75, 0];
+            const rightVec = [side * 0.75, 0];
+            const backVecUp = [0, h];
+            const backVecDown = [0, -h];
+
+            function neighborId(fromId, dir) {
+                const t = triangles[fromId];
+                let vx = 0, vy = 0;
+                if (dir === "left") {
+                    vx = -side * 0.75;
+                } else if (dir === "right") {
+                    vx = side * 0.75;
+                } else if (dir === "vertical") {
+                    // For up triangles, neighbor is above; for down, neighbor is below
+                    vy = t.up ? h * 1.25 : -h * 1.25;
                 } else {
-                if (rowIdx > 0) {
-                    const prevRowStart = rowStarts[rowIdx - 1];
-                    const prevRowSize = this.rowLayout[rowIdx - 1];
-                    const offset = Math.floor((rowSize - prevRowSize) / 2);
-                    const targetPos = pos - offset;
-                    
-                    if (targetPos >= 0 && targetPos < prevRowSize) {
-                    neighbors.push(prevRowStart + targetPos);
+                    return null;
+                }
+                const targetKey = keyFor(t.cx + vx, t.cy + vy);
+                return centroidMap.has(targetKey) ? centroidMap.get(targetKey) : null;
+            }
+
+            // Player spawn AKA starting position
+            let player1Id = 3; // Top of board
+            let player2Id = triangles.length - 4; // Bottom of board
+            let currentPlayer = 1; // 1 or 2
+
+            let player1Eliminated = false;
+            let player2Eliminated = false;
+
+            // Place 3 pillars on non-edge, non-player-start tiles
+            const pillarCount = 4;
+            const startLayers = 3;
+            let placed = 0;
+            function isEdgeTile(t) {
+                return t.row === 0 || t.row === rows.length - 1 ||
+                    t.col === 0 || t.col === rows[t.row] - 1;
+            }
+
+            function isValidPillarTile(t) {
+                // Not on edge
+                if (isEdgeTile(t)) return false;
+                // Not on columns 1 or second-to-last column
+                if (t.col === 0 || t.col === rows[t.row] - 2) return false;
+                // Not already a pillar, not a player start
+                if (t.isPillar) return false;
+                if (t.id === player1Id || t.id === player2Id) return false;
+                // Not adjacent to another pillar
+                const neighborIds = [
+                    neighborId(t.id, "left"),
+                    neighborId(t.id, "right"),
+                    neighborId(t.id, "vertical")
+                ];
+                for (const nid of neighborIds) {
+                    if (nid !== null && triangles[nid].isPillar) return false;
+                }
+                // Not adjacent to edge tile
+                for (const nid of neighborIds) {
+                    if (nid !== null && isEdgeTile(triangles[nid])) return false;
+                }
+                return true;
+            }
+
+            while (placed < pillarCount) {
+                const idx = Math.floor(Math.random() * triangles.length);
+                const t = triangles[idx];
+                if (isValidPillarTile(t)) {
+                    t.isPillar = true;
+                    t.pillarLayers = Math.floor(startLayers);
+                    placed++;
+                }
+            }
+
+            let lockedTiles = new Set();
+
+            let highlightedCornerTiles = [];
+            let highlightedAdjacentToCorners = [];
+            let highlightedSharedOfAdjacent = [];
+
+            function getCurrentPlayerId() {
+                return currentPlayer === 1 ? player1Id : player2Id;
+            }
+            function setCurrentPlayerId(id) {
+                if (currentPlayer === 1) player1Id = id;
+                else player2Id = id;
+            }
+
+            // Compute possible moves for current player
+            function getPossibleMoves(id) {
+                return ["left", "right", "vertical"]
+                    .map(dir => neighborId(id, dir))
+                    .filter(nid =>
+                        nid !== null &&
+                        !lockedTiles.has(nid) &&
+                        !triangles[nid].isPillar // Prevent moving onto pillars
+                    );
+            }
+
+            // Returns array of adjacent pillar IDs with layers > 0
+            function getAdjacentPillars(id) {
+                return ["left", "right", "vertical"]
+                    .map(dir => neighborId(id, dir))
+                    .filter(nid => nid !== null && triangles[nid].isPillar && triangles[nid].pillarLayers > 0);
+            }
+
+            function getOtherAdjacentTiles(pillarId, playerId) {
+                const neighbors = [
+                    neighborId(pillarId, "left"),
+                    neighborId(pillarId, "right"),
+                    neighborId(pillarId, "vertical")
+                ];
+                // Filter out the player and any nulls
+                return neighbors.filter(nid => nid !== null && nid !== playerId);
+            }
+
+            function getAdjacentToCornerTiles(pillarId, playerId) {
+                const corners = getOtherAdjacentTiles(pillarId, playerId);
+                let result = [];
+                corners.forEach(cornerId => {
+                    getNeighbors(cornerId).forEach(nid => {
+                        if (
+                            nid !== pillarId &&
+                            nid !== playerId &&
+                            !corners.includes(nid)
+                        ) {
+                            result.push(nid);
+                        }
+                    });
+                });
+                // Remove duplicates
+                return [...new Set(result)];
+            }
+
+            function getSharedOfAdjacentTiles(pillarId, playerId) {
+                const greenTiles = getAdjacentToCornerTiles(pillarId, playerId);
+                const cornerTiles = getCornerTiles(pillarId, playerId);
+                const neighborCount = {};
+                greenTiles.forEach(greenId => {
+                    getNeighbors(greenId).forEach(nid => {
+                        // Exclude the pillar, player, green tiles, and corner tiles
+                        if (
+                            nid !== pillarId &&
+                            nid !== playerId &&
+                            !greenTiles.includes(nid) &&
+                            !cornerTiles.includes(nid)
+                        ) {
+                            neighborCount[nid] = (neighborCount[nid] || 0) + 1;
+                        }
+                    });
+                });
+                // Only include tiles that are neighbors of 2 or more green tiles
+                return Object.keys(neighborCount)
+                    .filter(nid => neighborCount[nid] > 1)
+                    .map(nid => parseInt(nid));
+            }
+
+            function getNeighbors(tileId) {
+                return ["left", "right", "vertical"]
+                    .map(dir => neighborId(tileId, dir))
+                    .filter(nid => nid !== null);
+            }
+
+            function getCornerTiles(pillarId, playerId) {
+                // The two other adjacent tiles are the "corners"
+                return getOtherAdjacentTiles(pillarId, playerId);
+            }
+
+            // The knockPillar function knocks pillar layers off.
+            function knockPillar(playerId, pillarId) {
+                const pillar = triangles[pillarId];
+                if (!pillar.isPillar || pillar.pillarLayers <= 0) return;
+
+                // Get all three neighbors
+                const neighbors = [
+                    neighborId(pillarId, "left"),
+                    neighborId(pillarId, "right"),
+                    neighborId(pillarId, "vertical")
+                ];
+
+                // Find which neighbor the player is on
+                let playerNeighborIndex = neighbors.indexOf(playerId);
+
+                // Knock a layer off pillar
+                pillar.pillarLayers--;
+                if (pillar.pillarLayers === 0) {
+                    pillar.isPillar = false;
+                }
+
+                // Affect the "opposite" tile(s)
+                const oppositeTiles = getSharedOfAdjacentTiles(pillarId, playerId);
+                oppositeTiles.forEach(oppId => {
+                    if (triangles[oppId] && triangles[oppId].layers > 0) {
+                        triangles[oppId].layers--;
+                        if (triangles[oppId].layers === 0) {
+                            lockedTiles.add(oppId);
+                        }
+                    }
+
+                    // --- Knock back player if present on the hit tile ---
+                    let hitPlayer = null;
+                    if (player1Id === oppId && !player1Eliminated) hitPlayer = 1;
+                    if (player2Id === oppId && !player2Eliminated) hitPlayer = 2;
+
+                    if (hitPlayer) {
+                        const knockAdjacentToCorners = getAdjacentToCornerTiles(pillarId, hitPlayer === 1 ? player1Id : player2Id);
+                        const neighbors = [
+                            neighborId(oppId, "left"),
+                            neighborId(oppId, "right"),
+                            neighborId(oppId, "vertical")
+                        ];
+                        // All adjacent tiles (including pillars)
+                        const allAdjacents = neighbors.filter(nid =>
+                            nid !== null &&
+                            !knockAdjacentToCorners.includes(nid) &&
+                            player1Id !== nid && player2Id !== nid
+                        );
+                        // Only non-pillar, non-locked
+                        const validAdjacents = allAdjacents.filter(nid =>
+                            !lockedTiles.has(nid) &&
+                            !triangles[nid].isPillar
+                        );
+                        // Only pillar tiles
+                        const pillarAdjacents = allAdjacents.filter(nid =>
+                            triangles[nid].isPillar
+                        );
+
+                        if (validAdjacents.length > 0) {
+                            const chosen = validAdjacents[Math.floor(Math.random() * validAdjacents.length)];
+                            if (hitPlayer === 1) player1Id = chosen;
+                            if (hitPlayer === 2) player2Id = chosen;
+                        } else if (pillarAdjacents.length > 0) {
+                            // Squished by pillar
+                            if (hitPlayer === 1) player1Eliminated = true;
+                            if (hitPlayer === 2) player2Eliminated = true;
+                            // Optionally, move them off the board:
+                            if (hitPlayer === 1) player1Id = -1;
+                            if (hitPlayer === 2) player2Id = -1;
+                            // Show message
+                            document.getElementById('message').textContent =
+                                `Player ${hitPlayer} was squished by a pillar and is eliminated!`;
+                            svg.style.pointerEvents = "none";
+                        } else {
+                            // Knocked off the board
+                            if (hitPlayer === 1) player1Eliminated = true;
+                            if (hitPlayer === 2) player2Eliminated = true;
+                            if (hitPlayer === 1) player1Id = -1;
+                            if (hitPlayer === 2) player2Id = -1;
+                            document.getElementById('message').textContent =
+                                `Player ${hitPlayer} was knocked off the board and is eliminated!`;
+                            svg.style.pointerEvents = "none";
+                        }
+                    }
+                    // --- End knockback ---
+                });
+                render();
+            }
+
+            // UI: Knock Pillar Button (create only once)
+            let knockBtn = document.createElement("button");
+            knockBtn.textContent = "Knock Pillar";
+            knockBtn.style.display = "none";
+            knockBtn.onclick = function () {
+                const playerId = getCurrentPlayerId();
+                const adjPillars = getAdjacentPillars(playerId);
+                if (adjPillars.length > 0) {
+                    // For simplicity, knock the first adjacent pillar
+                    knockPillar(playerId, adjPillars[0]);
+                    // Switch turn after knocking
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    render();
+                }
+            };
+            document.querySelector('.controls').insertBefore(knockBtn, document.getElementById('message'));
+
+            // Render player and highlights
+            function render() {
+                // 1. Clear all highlight classes
+                triangles.forEach(t => {
+                    t.svg.classList.remove("possible-move");
+                    t.svg.classList.remove("corner-highlight");
+                    t.svg.classList.remove("adjacent-corner-highlight");
+                    t.svg.classList.remove("shared-adjacent-highlight");
+                });
+
+                // 2. Set base fill and pillar/locked/layer logic
+                triangles.forEach(t => {
+                    t.svg.setAttribute("stroke", "#000000");
+                    t.svg.setAttribute("opacity", "1");
+                    if (t.isPillar) {
+                        let color = "#8393ca";
+                        if (t.pillarLayers === 3) color = "#82ca9c";
+                        else if (t.pillarLayers === 2) color = "#6dcff6";
+                        else if (t.pillarLayers === 1) color = "#8393ca";
+                        t.svg.setAttribute("fill", color);
+
+                        if (!t.textEl) {
+                            t.textEl = document.createElementNS(svgNS, "text");
+                            t.textEl.setAttribute("x", t.cx);
+                            t.textEl.setAttribute("y", t.cy + 30);
+                            t.textEl.setAttribute("text-anchor", "middle");
+                            t.textEl.setAttribute("font-size", "22");
+                            t.textEl.setAttribute("fill", "#fff");
+                            svg.appendChild(t.textEl);
+                        }
+                        t.textEl.textContent = t.pillarLayers;
+                        t.textEl.style.display = "";
+                    } else {
+                        if (t.textEl) t.textEl.style.display = "none";
+                        if (lockedTiles.has(t.id)) {
+                            t.svg.setAttribute("fill", "#330f0a");
+                        } else if (t.layers === 2) {
+                            t.svg.setAttribute("fill", "#ff8500");
+                        } else if (t.layers === 1) {
+                            t.svg.setAttribute("fill", "#ff0000");
+                        }
+                    }
+                });
+
+                // 3. Highlight possible moves for current player
+                getPossibleMoves(getCurrentPlayerId()).forEach(nid => {
+                    if (nid !== player1Id && nid !== player2Id) {
+                        const t = triangles[nid];
+                        t.svg.setAttribute("fill", "#fff875");
+                        t.svg.classList.add("possible-move");
+                    }
+                });
+
+                // 4. Show knock button if adjacent to pillar and update highlightedCornerTiles
+                const adjPillars = getAdjacentPillars(getCurrentPlayerId());
+                knockBtn.style.display = adjPillars.length > 0 ? "" : "none";
+                if (adjPillars.length > 0) {
+                    highlightedCornerTiles = getCornerTiles(adjPillars[0], getCurrentPlayerId());
+                    highlightedAdjacentToCorners = getAdjacentToCornerTiles(adjPillars[0], getCurrentPlayerId());
+                    highlightedSharedOfAdjacent = getSharedOfAdjacentTiles(adjPillars[0], getCurrentPlayerId());
+                } else {
+                    highlightedCornerTiles = [];
+                    highlightedAdjacentToCorners = [];
+                    highlightedSharedOfAdjacent = [];
+                }
+
+                // 5. Highlight corner tiles (do this last!)                
+                highlightedSharedOfAdjacent.forEach(id => {
+                    if (triangles[id] && triangles[id].svg) {
+                        triangles[id].svg.setAttribute("fill", "#ff6e6e"); // pink highlight
+                        triangles[id].svg.classList.add("shared-adjacent-highlight");
+                    }
+                });
+
+                // 6. Position player pieces
+                if (!player1Eliminated && player1Id >= 0) {
+                    const t1 = triangles[player1Id];
+                    player1Circle.setAttribute("cx", t1.cx);
+                    player1Circle.setAttribute("cy", t1.cy + 22);
+                    player1Circle.style.display = "";
+                } else {
+                    player1Circle.style.display = "none";
+                }
+                if (!player2Eliminated && player2Id >= 0) {
+                    const t2 = triangles[player2Id];
+                    player2Circle.setAttribute("cx", t2.cx);
+                    player2Circle.setAttribute("cy", t2.cy + 22);
+                    player2Circle.style.display = "";
+                } else {
+                    player2Circle.style.display = "none";
+                }
+
+                // 7. Message
+                const p = triangles[getCurrentPlayerId()];
+
+                if (player1Eliminated) {
+                    document.getElementById('message').textContent = "Player 2 wins! Player 1 has been eliminated.";
+                    svg.style.pointerEvents = "none";
+                    return;
+                }
+                if (player2Eliminated) {
+                    document.getElementById('message').textContent = "Player 1 wins! Player 2 has been eliminated.";
+                    svg.style.pointerEvents = "none";
+                    return;
+                }
+
+                document.getElementById('message').textContent =
+                    `Player ${currentPlayer}'s turn. You are on tile #${getCurrentPlayerId() + 1} (row ${p.row + 1}, col ${p.col + 1}). Click a highlighted tile to move.`;
+            }
+
+            // Click handler for movement
+            svg.addEventListener('click', (ev) => {
+                const pt = ev.target;
+                if (pt.tagName === "polygon") {
+                    const id = parseInt(pt.dataset.id);
+                    if ((id === player1Id || id === player2Id)) return;
+                    if (!isNaN(id) && getPossibleMoves(getCurrentPlayerId()).includes(id)) {
+                        // Decrement the layer count of the previous tile
+                        const prevId = getCurrentPlayerId();
+                        triangles[prevId].layers = Math.max(0, triangles[prevId].layers - 1);
+                        // Only lock the tile if all layers are gone
+                        if (triangles[prevId].layers === 0) {
+                            lockedTiles.add(prevId);
+                        }
+                        setCurrentPlayerId(id);
+                        // Switch turn
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+
+                        // Check if the next player has any moves
+                        const canKnockPillar = getAdjacentPillars(getCurrentPlayerId()).length > 0;
+                        if (getPossibleMoves(getCurrentPlayerId()).length === 0 && !canKnockPillar) {
+                            // The next player cannot move, so the previous player wins
+                            //const winner = currentPlayer === 1 ? 2 : 1;
+                            if (currentPlayer === 1) {
+                                player1Eliminated = true;
+                            }
+                            else {
+                                player2Eliminated = true;
+                            }
+                            /*
+                            render();
+                            document.getElementById('message').textContent =
+                                `Player ${winner} wins! Player ${currentPlayer} has no available moves.`;
+                            // Optionally, disable further moves
+                            svg.style.pointerEvents = "none";
+                            return;
+                            */
+                        }
+                        render();
                     }
                 }
-                }
-                
-                adjacency[current] = neighbors;
-            }
-            }
-            
-            return adjacency;
-        }
-        
-        placePillars() {
-            const available = [];
-            for (let i = 3; i < this.numTiles - 1; i++) {
-            available.push(i);
-            }
-            
-            const shuffled = available.sort(() => Math.random() - 0.5);
-            this.pillars = new Set(shuffled.slice(0, Math.min(this.numPillars, available.length)));
-        }
-        
-        getValidMoves(player) {
-            const pos = player === 1 ? this.player1Pos : this.player2Pos;
-            const opponentPos = player === 1 ? this.player2Pos : this.player1Pos;
-            const neighbors = this.adjacency[pos] || [];
-            
-            return neighbors.filter(n => this.tiles[n] > 0 && n !== opponentPos);
-        }
-        
-        movePlayer(player, targetTile) {
-            const currentPos = player === 1 ? this.player1Pos : this.player2Pos;
-            const validMoves = this.getValidMoves(player);
-            
-            if (!validMoves.includes(targetTile)) {
-            return { success: false, message: "Invalid move!" };
-            }
-            
-            let message = "";
-            
-            if (this.pillars.has(targetTile)) {
-            const pushedTo = this.pushPillar(targetTile, currentPos);
-            message += "Pillar pushed! ";
-            
-            if (pushedTo) {
-                const opponentPos = player === 1 ? this.player2Pos : this.player1Pos;
-                if (pushedTo === opponentPos) {
-                message += "Hit opponent! ";
-                }
-                
-                // Check if opponent's tile was destroyed by the pillar
-                if (this.tiles[opponentPos] === 0) {
-                message += "Opponent's tile destroyed! ";
-                }
-            }
-            }
-            
-            if (player === 1) {
-            this.player1Pos = targetTile;
-            } else {
-            this.player2Pos = targetTile;
-            }
-            
-            return { success: true, message };
-        }
-        
-        pushPillar(pillarTile, fromTile) {
-            this.pillars.delete(pillarTile);
-            
-            const rowStarts = [1];
-            for (let i = 0; i < this.rowLayout.length - 1; i++) {
-            rowStarts.push(rowStarts[rowStarts.length - 1] + this.rowLayout[i]);
-            }
-            
-            let pillarRow = 0, pillarCol = 0;
-            for (let rowIdx = 0; rowIdx < rowStarts.length; rowIdx++) {
-            if (pillarTile >= rowStarts[rowIdx] && 
-                (rowIdx === rowStarts.length - 1 || pillarTile < rowStarts[rowIdx + 1])) {
-                pillarRow = rowIdx;
-                pillarCol = pillarTile - rowStarts[rowIdx];
-                break;
-            }
-            }
-            
-            const isPointingUp = this.tileOrientations[pillarTile];
-            const neighbors = this.adjacency[pillarTile] || [];
-            
-            // Always create a full list of all possible targets
-            const targetCandidates = [];
-            
-            if (isPointingUp) {
-            // Triangle pointing up
-            if (fromTile === pillarTile - 1 && neighbors.includes(fromTile)) {
-                // Entered from left edge - prioritize opposite exits
-                if (pillarRow + 1 < this.rowLayout.length) {
-                const nextRowStart = rowStarts[pillarRow + 1];
-                const rightExit = nextRowStart + pillarCol + 1;
-                const centerExit = nextRowStart + pillarCol;
-                if (rightExit <= this.numTiles) targetCandidates.push(rightExit);
-                if (centerExit <= this.numTiles) targetCandidates.push(centerExit);
-                }
-                if (neighbors.includes(pillarTile + 1)) targetCandidates.push(pillarTile + 1);
-            } else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
-                // Entered from right edge - prioritize opposite exits
-                if (pillarRow + 1 < this.rowLayout.length) {
-                const nextRowStart = rowStarts[pillarRow + 1];
-                const leftExit = nextRowStart + pillarCol;
-                const rightExit = nextRowStart + pillarCol + 1;
-                if (leftExit <= this.numTiles) targetCandidates.push(leftExit);
-                if (rightExit <= this.numTiles) targetCandidates.push(rightExit);
-                }
-                if (neighbors.includes(pillarTile - 1)) targetCandidates.push(pillarTile - 1);
-            } else {
-                // Entered from point (top) - exit through base
-                if (neighbors.includes(pillarTile - 1)) targetCandidates.push(pillarTile - 1);
-                if (neighbors.includes(pillarTile + 1)) targetCandidates.push(pillarTile + 1);
-                if (pillarRow + 1 < this.rowLayout.length) {
-                const nextRowStart = rowStarts[pillarRow + 1];
-                if (pillarCol + 1 < this.rowLayout[pillarRow + 1]) {
-                    targetCandidates.push(nextRowStart + pillarCol + 1);
-                }
-                if (pillarCol < this.rowLayout[pillarRow + 1]) {
-                    targetCandidates.push(nextRowStart + pillarCol);
-                }
-                }
-            }
-            } else {
-            // Triangle pointing down
-            if (fromTile === pillarTile - 1 && neighbors.includes(fromTile)) {
-                // Entered from left edge - prioritize opposite exits
-                if (pillarRow > 0) {
-                const prevRowStart = rowStarts[pillarRow - 1];
-                const rightExit = prevRowStart + pillarCol;
-                const leftExit = prevRowStart + Math.max(0, pillarCol - 1);
-                if (rightExit >= 1) targetCandidates.push(rightExit);
-                if (leftExit >= 1 && leftExit !== rightExit) targetCandidates.push(leftExit);
-                }
-                if (neighbors.includes(pillarTile + 1)) targetCandidates.push(pillarTile + 1);
-            } else if (fromTile === pillarTile + 1 && neighbors.includes(fromTile)) {
-                // Entered from right edge - prioritize opposite exits
-                if (pillarRow > 0 && pillarCol > 0) {
-                const prevRowStart = rowStarts[pillarRow - 1];
-                const leftExit = prevRowStart + pillarCol - 1;
-                const rightExit = prevRowStart + pillarCol;
-                if (leftExit >= 1) targetCandidates.push(leftExit);
-                if (rightExit >= 1 && rightExit !== leftExit) targetCandidates.push(rightExit);
-                }
-                if (neighbors.includes(pillarTile - 1)) targetCandidates.push(pillarTile - 1);
-            } else {
-                // Entered from point (bottom) - exit through base
-                if (neighbors.includes(pillarTile - 1)) targetCandidates.push(pillarTile - 1);
-                if (neighbors.includes(pillarTile + 1)) targetCandidates.push(pillarTile + 1);
-                if (pillarRow > 0) {
-                const prevRowStart = rowStarts[pillarRow - 1];
-                if (pillarCol < this.rowLayout[pillarRow - 1]) {
-                    targetCandidates.push(prevRowStart + pillarCol);
-                }
-                if (pillarCol > 0 && pillarCol - 1 < this.rowLayout[pillarRow - 1]) {
-                    targetCandidates.push(prevRowStart + pillarCol - 1);
-                }
-                }
-            }
-            }
-            
-            // Add ALL remaining neighbors as fallback (excluding fromTile)
-            for (const neighbor of neighbors) {
-            if (neighbor !== fromTile && !targetCandidates.includes(neighbor)) {
-                targetCandidates.push(neighbor);
-            }
-            }
-            
-            // Find first valid target (in bounds, is a neighbor, no pillar there)
-            let target = null;
-            for (const candidate of targetCandidates) {
-            if (candidate >= 1 && 
-                candidate <= this.numTiles && 
-                neighbors.includes(candidate) && 
-                !this.pillars.has(candidate)) {
-                target = candidate;
-                break;
-            }
-            }
-            
-            // Absolute last resort: if NO valid target exists, pillar stays but doesn't damage
-            if (target === null) {
-            this.pillars.add(pillarTile);
-            return null;
-            }
-            
-            // Damage the target tile (only if it has layers)
-            if (this.tiles[target] > 0) {
-            this.tiles[target] -= 1;
-            }
-            
-            // If target tile was destroyed, relocate pillar to random valid tile
-            if (this.tiles[target] === 0) {
-            const availableTiles = [];
-            for (let i = 1; i <= this.numTiles; i++) {
-                if (this.tiles[i] > 0 && 
-                    i !== this.player1Pos && 
-                    i !== this.player2Pos && 
-                    !this.pillars.has(i)) {
-                availableTiles.push(i);
-                }
-            }
-            
-            if (availableTiles.length > 0) {
-                const randomTile = availableTiles[Math.floor(Math.random() * availableTiles.length)];
-                this.pillars.add(randomTile);
-                return randomTile;
-            } else {
-                this.pillars.add(target);
-                return target;
-            }
-            }
-            
-            // Target tile still has layers, place pillar there
-            this.pillars.add(target);
-            return target;
-        }
-        
-        checkGameOver() {
-            if (this.tiles[this.player1Pos] === 0) return 2;
-            if (this.tiles[this.player2Pos] === 0) return 1;
-            
-            if (this.currentPlayer === 1 && this.getValidMoves(1).length === 0) return 2;
-            if (this.currentPlayer === 2 && this.getValidMoves(2).length === 0) return 1;
-            
-            return null;
-        }
-        
-        reset() {
-            for (let i = 1; i <= this.numTiles; i++) {
-            this.tiles[i] = this.initialLayers;
-            }
-            this.player1Pos = 1;
-            this.player2Pos = this.numTiles;
-            this.currentPlayer = 1;
-            this.pillars = new Set();
-            this.placePillars();
-        }
-        }
+            });
 
-        // Main App Component
-        function TrifectaApp() {
-        const [screen, setScreen] = useState('menu');
-        const [game, setGame] = useState(null);
-        const [message, setMessage] = useState('');
-        const [winner, setWinner] = useState(null);
-        const [settings, setSettings] = useState({
-            numPillars: 4,
-            initialLayers: 3
-        });
-        
-        const startNewGame = () => {
-            const newGame = new TrifectaGame(settings.numPillars, settings.initialLayers);
-            setGame(newGame);
-            setWinner(null);
-            setMessage('Click on a highlighted tile to move');
-            setScreen('game');
-        };
-        
-        const handleTileClick = (tileNum) => {
-            if (!game || winner) return;
-            
-            const validMoves = game.getValidMoves(game.currentPlayer);
-            if (!validMoves.includes(tileNum)) {
-            setMessage('Invalid move! Choose a highlighted tile.');
-            return;
-            }
-            
-            const result = game.movePlayer(game.currentPlayer, tileNum);
-            
-            if (result.success) {
-            setMessage(result.message || 'Move successful!');
-            
-            const gameWinner = game.checkGameOver();
-            if (gameWinner) {
-                setWinner(gameWinner);
-                setMessage(`Player ${gameWinner} wins!`);
-                return;
-            }
-            
-            game.currentPlayer = 3 - game.currentPlayer;
-            // Force re-render by creating new object reference
-            setGame(new TrifectaGame(game.numPillars, game.initialLayers));
-            // Copy game state
-            const newGame = new TrifectaGame(game.numPillars, game.initialLayers);
-            newGame.tiles = { ...game.tiles };
-            newGame.player1Pos = game.player1Pos;
-            newGame.player2Pos = game.player2Pos;
-            newGame.currentPlayer = game.currentPlayer;
-            newGame.pillars = new Set(game.pillars);
-            setGame(newGame);
-            }
-        };
-        
-        if (screen === 'menu') {
-            return <MainMenu onStart={startNewGame} onSettings={() => setScreen('settings')} 
-                            onHelp={() => setScreen('help')} onAbout={() => setScreen('about')} />;
-        }
-        
-        if (screen === 'settings') {
-            return <SettingsScreen settings={settings} setSettings={setSettings} onBack={() => setScreen('menu')} />;
-        }
-        
-        if (screen === 'help') {
-            return <HelpScreen onBack={() => setScreen('menu')} />;
-        }
-        
-        if (screen === 'about') {
-            return <AboutScreen onBack={() => setScreen('menu')} />;
-        }
-        
-        return (
-            <GameScreen 
-            game={game} 
-            message={message} 
-            winner={winner}
-            onTileClick={handleTileClick}
-            onNewGame={startNewGame}
-            onMenu={() => setScreen('menu')}
-            />
-        );
-        }
+            // Initial render
+            render();
 
-        // Main Menu Component
-        function MainMenu({ onStart, onSettings, onHelp, onAbout }) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-            <div className="text-center space-y-8 max-w-2xl">
-                <div className="space-y-4">
-                <h1 className="text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-lg">
-                    TRIFECTA
-                </h1>
-                <p className="text-xl text-purple-200 italic">Strategic Triangular Warfare</p>
-                </div>
-                
-                <div className="space-y-4">
-                <MenuButton icon="▶️" onClick={onStart}>Start Game</MenuButton>
-                <MenuButton icon="⚙️" onClick={onSettings}>Settings</MenuButton>
-                <MenuButton icon="❓" onClick={onHelp}>How to Play</MenuButton>
-                <MenuButton icon="ℹ️" onClick={onAbout}>About</MenuButton>
-                </div>
-            </div>
-            </div>
-        );
-        }
+            // Remove movement buttons and update info
+            document.querySelector('.btn-row').style.display = 'none';
+            document.querySelector('.info').innerHTML = "Click a highlighted tile to move.<br><small>Only adjacent tiles are allowed.</small>";
 
-        function MenuButton({ icon, onClick, children }) {
-        return (
-            <button
-            onClick={onClick}
-            className="w-full max-w-md mx-auto flex items-center justify-center gap-3 bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg"
-            >
-            <span className="text-2xl">{icon}</span>
-            <span className="text-xl">{children}</span>
-            </button>
-        );
-        }
-
-        // Settings Screen
-        function SettingsScreen({ settings, setSettings, onBack }) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
-            <div className="max-w-2xl mx-auto bg-slate-800 rounded-xl p-8 shadow-2xl">
-                <h2 className="text-4xl font-bold text-purple-400 mb-6">Settings</h2>
-                
-                <div className="space-y-6">
-                <div>
-                    <label className="block text-white text-lg mb-2">Number of Pillars: {settings.numPillars}</label>
-                    <input
-                    type="range"
-                    min="2"
-                    max="8"
-                    value={settings.numPillars}
-                    onChange={(e) => setSettings({ ...settings, numPillars: parseInt(e.target.value) })}
-                    className="w-full"
-                    />
-                </div>
-                
-                <div>
-                    <label className="block text-white text-lg mb-2">Initial Tile Layers: {settings.initialLayers}</label>
-                    <input
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={settings.initialLayers}
-                    onChange={(e) => setSettings({ ...settings, initialLayers: parseInt(e.target.value) })}
-                    className="w-full"
-                    />
-                </div>
-                </div>
-                
-                <button onClick={onBack} className="mt-8 flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg">
-                <span className="text-lg">🏠</span>
-                Back to Menu
-                </button>
-            </div>
-            </div>
-        );
-        }
-
-        // Help Screen
-        function HelpScreen({ onBack }) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8 overflow-y-auto">
-            <div className="max-w-3xl mx-auto bg-slate-800 rounded-xl p-8 shadow-2xl">
-                <h2 className="text-4xl font-bold text-purple-400 mb-6">How to Play Trifecta</h2>
-                
-                <div className="space-y-6 text-white">
-                <section>
-                    <h3 className="text-2xl font-bold text-purple-300 mb-3">Objective</h3>
-                    <p className="text-lg">Outmaneuver your opponent on a triangular grid. Win by destroying the tile your opponent stands on or trapping them with no valid moves.</p>
-                </section>
-                
-                <section>
-                    <h3 className="text-2xl font-bold text-purple-300 mb-3">Game Board</h3>
-                    <ul className="list-disc list-inside space-y-2 text-lg">
-                    <li>54 triangular tiles arranged in rows: 7, 9, 11, 11, 9, 7</li>
-                    <li>Triangles alternate between pointing up (△) and down (▽)</li>
-                    <li>Each tile has multiple layers of health</li>
-                    <li>Player 1 (🔴) starts at tile 1, Player 2 (🔵) starts at tile 54</li>
-                    </ul>
-                </section>
-                
-                <section>
-                    <h3 className="text-2xl font-bold text-purple-300 mb-3">Movement</h3>
-                    <ul className="list-disc list-inside space-y-2 text-lg">
-                    <li>Players alternate turns</li>
-                    <li>Move to any adjacent tile (sharing a full edge)</li>
-                    <li>Cannot move to destroyed tiles or opponent's tile</li>
-                    <li>Valid moves are highlighted in green</li>
-                    </ul>
-                </section>
-                
-                <section>
-                    <h3 className="text-2xl font-bold text-purple-300 mb-3">Pillars (🏛️)</h3>
-                    <ul className="list-disc list-inside space-y-2 text-lg">
-                    <li>Moving onto a pillar pushes it through the triangle's point</li>
-                    <li>The pillar exits opposite from where you entered</li>
-                    <li>Pushed pillars damage the tile they land on (reduce 1 layer)</li>
-                    <li>Hitting opponent with a pillar is strategic!</li>
-                    <li>Pillars on tiles with 1 layer destroy that tile</li>
-                    </ul>
-                </section>
-                
-                <section>
-                    <h3 className="text-2xl font-bold text-purple-300 mb-3">Winning</h3>
-                    <ul className="list-disc list-inside space-y-2 text-lg">
-                    <li>Destroy the tile your opponent is standing on</li>
-                    <li>Trap your opponent with no valid moves</li>
-                    </ul>
-                </section>
-                
-                <section>
-                    <h3 className="text-2xl font-bold text-purple-300 mb-3">Legend</h3>
-                    <div className="bg-slate-700 p-4 rounded-lg">
-                    <p>🔴 Player 1 | 🔵 Player 2 | 🏛️ Pillar</p>
-                    <p>△ Triangle pointing up | ▽ Triangle pointing down</p>
-                    <p>Numbers on tiles = remaining layers</p>
-                    <p>Green = valid moves | Gold = full health | Orange = damaged | Dark = destroyed</p>
-                    </div>
-                </section>
-                </div>
-                
-                <button onClick={onBack} className="mt-8 flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg">
-                <span className="text-lg">🏠</span>
-                Back to Menu
-                </button>
-            </div>
-            </div>
-        );
-        }
-
-        // About Screen
-        function AboutScreen({ onBack }) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
-            <div className="max-w-2xl mx-auto bg-slate-800 rounded-xl p-8 shadow-2xl">
-                <h2 className="text-4xl font-bold text-purple-400 mb-6">About Trifecta</h2>
-                
-                <div className="space-y-4 text-white text-lg">
-                <p>
-                    <strong className="text-purple-300">Trifecta</strong> is a turn-based strategic board game played on a unique triangular grid.
-                </p>
-                
-                <p>
-                    Combining elements of positional strategy, resource management, and tactical warfare, players must carefully plan their moves to outmaneuver their opponent while managing the destructible terrain.
-                </p>
-                
-                <p className="text-purple-200 italic">
-                    "In a world of triangles, only the sharpest minds survive."
-                </p>
-                
-                <div className="bg-slate-700 p-4 rounded-lg mt-6">
-                    <p className="font-bold text-purple-300 mb-2">Game Design:</p>
-                    <p>Created as a strategic board game project</p>
-                    <p className="mt-2">Version: 1.0</p>
-                </div>
-                </div>
-                
-                <button onClick={onBack} className="mt-8 flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg">
-                <span className="text-lg">🏠</span>
-                Back to Menu
-                </button>
-            </div>
-            </div>
-        );
-        }
-
-        // Game Screen
-        function GameScreen({ game, message, winner, onTileClick, onNewGame, onMenu }) {
-        const canvasRef = useRef(null);
-        const TILE_SIZE = 50;
-        const CANVAS_WIDTH = 800;
-        const CANVAS_HEIGHT = 600;
-        
-        useEffect(() => {
-            if (!game || !canvasRef.current) return;
-            
-            const canvas = canvasRef.current;
-            const ctx = canvas.getContext('2d');
-            
-            // Calculate tile positions
-            const tileCoords = {};
-            let tileNum = 1;
-            const startY = 80;
-            const triangleHeight = TILE_SIZE * 0.866;
-            
-            const rowStarts = [1];
-            for (let i = 0; i < game.rowLayout.length - 1; i++) {
-            rowStarts.push(rowStarts[rowStarts.length - 1] + game.rowLayout[i]);
-            }
-            
-            for (let rowIdx = 0; rowIdx < game.rowLayout.length; rowIdx++) {
-            const rowSize = game.rowLayout[rowIdx];
-            const rowWidth = rowSize * (TILE_SIZE / 2);
-            const startX = (CANVAS_WIDTH - rowWidth) / 2;
-            const y = startY + rowIdx * triangleHeight;
-            
-            for (let pos = 0; pos < rowSize; pos++) {
-                const x = startX + pos * (TILE_SIZE / 2);
-                tileCoords[tileNum] = { x, y };
-                tileNum++;
-            }
-            }
-            
-            game.tileCoords = tileCoords;
-            
-            // Draw board
-            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            
-            const validMoves = game.getValidMoves(game.currentPlayer);
-            const TILE_COLORS = {
-            3: '#D4AF37',
-            2: '#FFD700',
-            1: '#FFA500',
-            0: '#333333'
-            };
-            
-            // STEP 1: Draw all tiles first
-            for (let tile = 1; tile <= game.numTiles; tile++) {
-            const { x, y } = tileCoords[tile];
-            const layers = game.tiles[tile];
-            const isPointingUp = game.tileOrientations[tile];
-            
-            let color;
-            if (layers === 0) {
-                color = TILE_COLORS[0];
-            } else if (validMoves.includes(tile)) {
-                color = '#00FF00';
-            } else {
-                color = TILE_COLORS[layers];
-            }
-            
-            const halfBase = TILE_SIZE / 2;
-            const height = TILE_SIZE * 0.866;
-            
-            ctx.beginPath();
-            if (isPointingUp) {
-                ctx.moveTo(x, y - height * 0.5);
-                ctx.lineTo(x - halfBase, y + height * 0.5);
-                ctx.lineTo(x + halfBase, y + height * 0.5);
-            } else {
-                ctx.moveTo(x - halfBase, y - height * 0.5);
-                ctx.lineTo(x + halfBase, y - height * 0.5);
-                ctx.lineTo(x, y + height * 0.5);
-            }
-            ctx.closePath();
-            ctx.fillStyle = color;
-            ctx.fill();
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // Draw tile number
-            ctx.fillStyle = 'black';
-            ctx.font = '8px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(tile.toString(), x, y - 10);
-            
-            // Draw layer count
-            if (layers > 0) {
-                ctx.font = 'bold 14px Arial';
-                ctx.fillStyle = 'black';
-                ctx.fillText(layers.toString(), x, y + 12);
-            } else {
-                ctx.font = 'bold 14px Arial';
-                ctx.fillStyle = 'white';
-                ctx.fillText('X', x, y + 12);
-            }
-            }
-            
-            // STEP 2: Draw pillars on top of tiles
-            for (let tile = 1; tile <= game.numTiles; tile++) {
-            if (game.pillars.has(tile)) {
-                const { x, y } = tileCoords[tile];
-                ctx.font = '20px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('🏛️', x, y - 15);
-            }
-            }
-            
-            // STEP 3: Draw players on top of everything
-            const { x: x1, y: y1 } = tileCoords[game.player1Pos];
-            ctx.beginPath();
-            ctx.arc(x1, y1, 12, 0, 2 * Math.PI);
-            ctx.fillStyle = '#FF4444';
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 10px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('P1', x1, y1 + 4);
-            
-            const { x: x2, y: y2 } = tileCoords[game.player2Pos];
-            ctx.beginPath();
-            ctx.arc(x2, y2, 12, 0, 2 * Math.PI);
-            ctx.fillStyle = '#4444FF';
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 10px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('P2', x2, y2 + 4);
-        }, [game]);
-        
-        const handleCanvasClick = (e) => {
-            if (!game || !game.tileCoords) return;
-            
-            const canvas = canvasRef.current;
-            const rect = canvas.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
-            
-            let closestTile = null;
-            let minDistance = Infinity;
-            
-            for (let tile = 1; tile <= game.numTiles; tile++) {
-            const { x, y } = game.tileCoords[tile];
-            const distance = Math.sqrt((clickX - x) ** 2 + (clickY - y) ** 2);
-            
-            if (distance < TILE_SIZE / 2 && distance < minDistance) {
-                closestTile = tile;
-                minDistance = distance;
-            }
-            }
-            
-            if (closestTile) {
-            onTileClick(closestTile);
-            }
-        };
-        
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
-            <div className="max-w-5xl mx-auto">
-                <div className="bg-slate-800 rounded-lg p-6 mb-4 shadow-xl">
-                <div className="flex justify-between items-center mb-4">
-                    <button onClick={onMenu} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-lg">
-                    <span className="text-lg">🏠</span>
-                    Menu
-                    </button>
-                    
-                    <h2 className={`text-3xl font-bold ${game.currentPlayer === 1 ? 'text-red-400' : 'text-blue-400'}`}>
-                    {winner ? `Player ${winner} Wins!` : `Player ${game.currentPlayer}'s Turn`}
-                    </h2>
-                    
-                    <button onClick={onNewGame} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">
-                    <span className="text-lg">🔄</span>
-                    New Game
-                    </button>
-                </div>
-                
-                <p className="text-center text-white text-lg">{message}</p>
-                </div>
-                
-                <div className="bg-slate-800 rounded-lg p-4 shadow-xl">
-                <canvas
-                    ref={canvasRef}
-                    width={CANVAS_WIDTH}
-                    height={CANVAS_HEIGHT}
-                    onClick={handleCanvasClick}
-                    className="mx-auto cursor-pointer border-2 border-purple-500 rounded-lg"
-                    style={{ backgroundColor: '#1A252F' }}
-                />
-                </div>
-                
-                <div className="bg-slate-800 rounded-lg p-4 mt-4 shadow-xl">
-                <p className="text-center text-white">
-                    🔴 Player 1 | 🔵 Player 2 | 🏛️ Pillar | △ Up | ▽ Down | Numbers = Layers
-                </p>
-                </div>
-            </div>
-            </div>
-        );
-        }
-        
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<TrifectaApp />);
+        })();
     </script>
+
 </body>
 </html>
