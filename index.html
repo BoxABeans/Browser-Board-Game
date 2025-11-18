@@ -19,6 +19,7 @@
             height: 100%;
             margin: 0;
             background: linear-gradient(180deg,#0b0f12,#081219);
+            background-attachment: fixed; /* Fix background cutoff */
             font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;
             color: #ddd
         }
@@ -90,6 +91,7 @@
             flex-direction: column;
             min-height: 100vh;
             padding: 20px;
+            overflow-y: auto; /* Allow scrolling within content screen */
         }
 
         .content-container {
@@ -151,6 +153,7 @@
         /* Game Screen Styles */
         .game-screen {
             flex-direction: row;
+            overflow-y: auto; /* Allow scrolling in game screen */
         }
 
         .wrap {
@@ -405,7 +408,7 @@
                 <div class="message" id="message">Click a direction to move.</div>
                 
                 <div class="btn-row" style="margin-top: 1.5rem;">
-                    <button onclick="showScreen('mainMenu'); location.reload()">← Menu</button>
+                    <button onclick="backToMenu()">← Menu</button>
                     <button onclick="location.reload()">↻ New Game</button>
                 </div>
                 
@@ -425,6 +428,16 @@
                 initGame();
                 window.gameInitialized = true;
             }
+        }
+
+        // Back to menu function
+        function backToMenu() {
+            // Reset game initialization flag
+            window.gameInitialized = false;
+            // Clear the board container
+            document.getElementById('boardContainer').innerHTML = '';
+            // Show main menu
+            showScreen('mainMenu');
         }
 
         // Game initialization
