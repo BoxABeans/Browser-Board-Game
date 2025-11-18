@@ -254,7 +254,7 @@
 </head>
 <body>
     <!-- Main Menu Screen -->
-    <div class="screen menu-screen active" id="mainMenu">
+    <div class="screen menu-screen active" id="mainMenuScreen">
         <h1 class="menu-title">TRIFECTA</h1>
         <p class="menu-subtitle">Strategic Triangular Warfare</p>
         <div class="menu-buttons">
@@ -421,7 +421,10 @@
         // Screen management
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.getElementById(screenId + 'Screen').classList.add('active');
+            const targetScreen = document.getElementById(screenId + 'Screen');
+            if (targetScreen) {
+                targetScreen.classList.add('active');
+            }
             
             // Initialize game when entering game screen
             if (screenId === 'game' && !window.gameInitialized) {
@@ -435,7 +438,10 @@
             // Reset game initialization flag
             window.gameInitialized = false;
             // Clear the board container
-            document.getElementById('boardContainer').innerHTML = '';
+            const boardContainer = document.getElementById('boardContainer');
+            if (boardContainer) {
+                boardContainer.innerHTML = '';
+            }
             // Show main menu
             showScreen('mainMenu');
         }
