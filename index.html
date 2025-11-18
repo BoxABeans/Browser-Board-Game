@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Triangular Hex Grid — Move Left / Right / Back</title>
+    <title>Trifecta - Strategic Board Game</title>
     <style>
         :root {
             --bg: #111;
@@ -23,6 +23,136 @@
             color: #ddd
         }
 
+        /* Screen management */
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: flex;
+        }
+
+        /* Main Menu Styles */
+        .menu-screen {
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .menu-title {
+            font-size: 4rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .menu-subtitle {
+            font-size: 1.2rem;
+            color: #a9b7b7;
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .menu-btn {
+            padding: 1.2rem 2rem;
+            border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.1);
+            background: linear-gradient(135deg, rgba(102,126,234,0.2) 0%, rgba(118,75,162,0.2) 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+
+        .menu-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102,126,234,0.4);
+            border-color: rgba(102,126,234,0.5);
+        }
+
+        /* Content Screen Styles */
+        .content-screen {
+            flex-direction: column;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .content-container {
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+            background: rgba(255,255,255,0.02);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+        }
+
+        .content-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 1.5rem;
+        }
+
+        .content-section {
+            margin-bottom: 2rem;
+        }
+
+        .content-section h3 {
+            font-size: 1.5rem;
+            color: #764ba2;
+            margin-bottom: 0.5rem;
+        }
+
+        .content-section p, .content-section ul {
+            color: #a9b7b7;
+            line-height: 1.6;
+        }
+
+        .content-section ul {
+            padding-left: 1.5rem;
+        }
+
+        .content-section li {
+            margin-bottom: 0.5rem;
+        }
+
+        .back-btn {
+            margin-top: 2rem;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            background: #163d3a;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+        .back-btn:hover {
+            background: #1a4d49;
+        }
+
+        /* Game Screen Styles */
+        .game-screen {
+            flex-direction: row;
+        }
+
         .wrap {
             display: flex;
             gap: 18px;
@@ -31,6 +161,7 @@
             padding: 20px;
             min-height: 100vh;
             box-sizing: border-box;
+            width: 100%;
         }
 
         .board {
@@ -52,10 +183,10 @@
             border: 1px solid rgba(255,255,255,0.02);
         }
 
-            .controls h2 {
-                margin: 2px 0 8px 0;
-                font-size: 18px
-            }
+        .controls h2 {
+            margin: 2px 0 8px 0;
+            font-size: 18px
+        }
 
         .btn-row {
             display: flex;
@@ -75,9 +206,9 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.4);
         }
 
-            button:active {
-                transform: translateY(1px)
-            }
+        button:active {
+            transform: translateY(1px)
+        }
 
         .info {
             font-size: 13px;
@@ -88,33 +219,21 @@
             display: flex;
             gap: 8px;
             align-items: center;
-            margin-top: 10px
+            margin-top: 10px;
+            flex-wrap: wrap;
         }
 
-            .legend span {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px
-            }
+        .legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px
+        }
 
         .swatch {
             width: 18px;
             height: 18px;
             border-radius: 4px;
             display: inline-block
-        }
-
-        .sw-player {
-            background: var(--player)
-        }
-
-        .sw-tri {
-            background: var(--tri-fill);
-            border: 2px solid var(--stroke)
-        }
-
-        .sw-possible {
-            background: var(--edge-highlight)
         }
 
         .message {
@@ -131,42 +250,191 @@
     </style>
 </head>
 <body>
-    <div class="wrap">
-        <div class="board" id="boardContainer">
-            <!-- svg will be injected -->
+    <!-- Main Menu Screen -->
+    <div class="screen menu-screen active" id="mainMenu">
+        <h1 class="menu-title">TRIFECTA</h1>
+        <p class="menu-subtitle">Strategic Triangular Warfare</p>
+        <div class="menu-buttons">
+            <button class="menu-btn" onclick="showScreen('game')">▶ Start Game</button>
+            <button class="menu-btn" onclick="showScreen('settings')">⚙ Settings</button>
+            <button class="menu-btn" onclick="showScreen('help')">? How to Play</button>
+            <button class="menu-btn" onclick="showScreen('about')">ℹ About</button>
         </div>
+    </div>
 
-        <div class="controls">
-            <h2>Controls</h2>
-            <div class="info">Select an edge to move.<br><small>For triangles pointing up: Back = down edge. For triangles pointing down: Back = up edge.</small></div>
-            <div class="btn-row">
-                <button id="leftBtn">← Left</button>
-                <button id="backBtn">⤴ Back</button>
-                <button id="rightBtn">Right →</button>
+    <!-- Settings Screen -->
+    <div class="screen content-screen" id="settingsScreen">
+        <div class="content-container">
+            <h2 class="content-title">Settings</h2>
+            <div class="content-section">
+                <p>Settings will be available in a future update. Planned features include:</p>
+                <ul>
+                    <li>AI Difficulty Levels</li>
+                    <li>Sound Effects Toggle</li>
+                    <li>Music Volume</li>
+                    <li>Board Theme Selection</li>
+                    <li>Player Names</li>
+                </ul>
             </div>
-            <div class="legend">
-                <span><i class="swatch" style="background:#7da7d9"></i>Player 1</span>
-                <span><i class="swatch" style="background:#ff5e5e"></i>Player 2</span>
+            <button class="back-btn" onclick="showScreen('mainMenu')">← Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Help Screen -->
+    <div class="screen content-screen" id="helpScreen">
+        <div class="content-container">
+            <h2 class="content-title">How to Play</h2>
+            
+            <div class="content-section">
+                <h3>Objective</h3>
+                <p>Outmaneuver your opponent on a triangular grid. Win by eliminating your opponent through strategic tile destruction and pillar attacks.</p>
             </div>
-            <div class="tile legend">
-                <span><i class="swatch" style="background:#ff8500"></i>2 Layers left</span>
-                <span><i class="swatch" style="background:#ff0000"></i>1 Layer Left</span>
-                <span><i class="swatch" style="background:#330f0a"></i>Empty Tile</span>
+
+            <div class="content-section">
+                <h3>Game Board</h3>
+                <ul>
+                    <li>48 triangular tiles arranged in a hexagonal pattern</li>
+                    <li>Triangles point up or down alternately</li>
+                    <li>Each tile has layers (health points)</li>
+                    <li>Players start at opposite ends of the board</li>
+                </ul>
             </div>
-            <div class="message" id="message">Click a direction to move.</div>
-            <footer>Grid: 48 triangular tiles arranged in a hex-ish shape.</footer>
+
+            <div class="content-section">
+                <h3>Movement</h3>
+                <ul>
+                    <li>Players alternate turns</li>
+                    <li>Click on a highlighted yellow tile to move there</li>
+                    <li>When you leave a tile, it loses 1 layer</li>
+                    <li>Tiles with 0 layers are destroyed and cannot be used</li>
+                    <li>You cannot move onto pillars or your opponent's tile</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>Pillars</h3>
+                <ul>
+                    <li>Blue/Green structures with their own layer count</li>
+                    <li>When adjacent to a pillar, the "Knock Pillar" button appears</li>
+                    <li>Knocking a pillar damages tiles in the opposite direction (shown in pink)</li>
+                    <li>If your opponent is on a pink tile when you knock, they get pushed back</li>
+                    <li>Pillars can be used strategically to trap opponents</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>Winning</h3>
+                <ul>
+                    <li>Trap your opponent with no valid moves</li>
+                    <li>Knock your opponent off the board with a pillar</li>
+                    <li>Squish your opponent against a pillar</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>Tile Colors</h3>
+                <ul>
+                    <li><strong style="color: #ff8500;">Orange:</strong> 2 layers remaining</li>
+                    <li><strong style="color: #ff0000;">Red:</strong> 1 layer remaining</li>
+                    <li><strong style="color: #330f0a;">Dark:</strong> Destroyed (0 layers)</li>
+                    <li><strong style="color: #fff875;">Yellow:</strong> Valid move</li>
+                    <li><strong style="color: #ff6e6e;">Pink:</strong> Will be hit if you knock pillar</li>
+                </ul>
+            </div>
+
+            <button class="back-btn" onclick="showScreen('mainMenu')">← Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- About Screen -->
+    <div class="screen content-screen" id="aboutScreen">
+        <div class="content-container">
+            <h2 class="content-title">About Trifecta</h2>
+            
+            <div class="content-section">
+                <p><strong>Trifecta</strong> is a turn-based strategic board game played on a unique triangular grid.</p>
+            </div>
+
+            <div class="content-section">
+                <h3>Game Design</h3>
+                <p>Combining elements of positional strategy, resource management, and tactical warfare, players must carefully plan their moves to outmaneuver their opponent while managing destructible terrain and deadly pillars.</p>
+            </div>
+
+            <div class="content-section">
+                <h3>Features</h3>
+                <ul>
+                    <li>Unique triangular grid system</li>
+                    <li>Dynamic terrain destruction</li>
+                    <li>Strategic pillar mechanics</li>
+                    <li>2-player local multiplayer</li>
+                    <li>Simple yet deep gameplay</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>Version</h3>
+                <p>Version 1.0 - Initial Release</p>
+                <p style="color: #667eea; font-style: italic; margin-top: 1rem;">"In a world of triangles, only the sharpest minds survive."</p>
+            </div>
+
+            <button class="back-btn" onclick="showScreen('mainMenu')">← Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div class="screen game-screen" id="gameScreen">
+        <div class="wrap">
+            <div class="board" id="boardContainer">
+                <!-- svg will be injected -->
+            </div>
+
+            <div class="controls">
+                <h2>Controls</h2>
+                <div class="info">Click a highlighted tile to move.</div>
+                
+                <div class="legend">
+                    <span><i class="swatch" style="background:#7da7d9"></i>Player 1</span>
+                    <span><i class="swatch" style="background:#f69679"></i>Player 2</span>
+                </div>
+                <div class="legend">
+                    <span><i class="swatch" style="background:#ff8500"></i>2 Layers</span>
+                    <span><i class="swatch" style="background:#ff0000"></i>1 Layer</span>
+                    <span><i class="swatch" style="background:#330f0a"></i>Empty</span>
+                </div>
+                
+                <div class="message" id="message">Click a direction to move.</div>
+                
+                <div class="btn-row" style="margin-top: 1.5rem;">
+                    <button onclick="showScreen('mainMenu'); location.reload()">← Menu</button>
+                    <button onclick="location.reload()">↻ New Game</button>
+                </div>
+                
+                <footer>48 triangular tiles in hexagonal layout</footer>
+            </div>
         </div>
     </div>
 
     <script>
-        (function () {
-            // Configuration
+        // Screen management
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId + 'Screen').classList.add('active');
+            
+            // Initialize game when entering game screen
+            if (screenId === 'game' && !window.gameInitialized) {
+                initGame();
+                window.gameInitialized = true;
+            }
+        }
+
+        // Game initialization
+        function initGame() {
+            // ...existing code (entire game logic goes here)...
             const rows = [7, 9, 11, 11, 9, 7];
             const side = 60;
             const h = side * Math.sqrt(3) / 2;
             const stroke = 4;
 
-            // Adjusted horizontal spacing for no overlap
             const maxRowLen = Math.max(...rows);
             const svgW = (maxRowLen - 1) * (side * 0.75) + side + 80;
             const svgH = rows.length * h + 160;
@@ -174,20 +442,16 @@
             const startY = 60;
 
             const triangles = [];
-
-            // For each row compute starting x to center the row
             const rowYs = [];
             let y = startY;
-            const vStep = h * 1.25; // vertical step between centroids
+            const vStep = h * 1.25;
             for (let r = 0; r < rows.length; r++) {
                 rowYs.push(y);
                 y += vStep;
             }
 
-            // Build triangles
             for (let r = 0; r < rows.length; r++) {
                 const n = rows[r];
-                // The y position for the base of the triangles in this row
                 const baseY = rowYs[r];
                 const rowWidth = (n - 1) * (side * 0.75);
                 const startX = centerX - rowWidth / 2;
@@ -198,12 +462,10 @@
 
                     let p1, p2, p3;
                     if (up) {
-                        // Base is at baseY, tip is above
                         p1 = [cx - side / 2, baseY + h];
                         p2 = [cx + side / 2, baseY + h];
                         p3 = [cx, baseY];
                     } else {
-                        // Base is at baseY, tip is below
                         p1 = [cx - side / 2, baseY];
                         p2 = [cx + side / 2, baseY];
                         p3 = [cx, baseY + h];
@@ -213,7 +475,7 @@
                         id: triangles.length,
                         row: r,
                         col: c,
-                        cx, cy: baseY, // you may want to update cy logic if needed elsewhere
+                        cx, cy: baseY,
                         up,
                         points: [p1, p2, p3],
                         svg: null,
@@ -224,7 +486,6 @@
                 }
             }
 
-            // SVG setup
             const svgNS = "http://www.w3.org/2000/svg";
             const svg = document.createElementNS(svgNS, "svg");
             svg.setAttribute("width", svgW);
@@ -265,7 +526,6 @@
 
             document.getElementById('boardContainer').appendChild(svg);
 
-            // Centroid map for neighbor lookup
             const centroidMap = new Map();
             function keyFor(x, y) {
                 return (Math.round(x * 100) / 100) + "," + (Math.round(y * 100) / 100);
@@ -273,12 +533,6 @@
             triangles.forEach(t => {
                 centroidMap.set(keyFor(t.cx, t.cy), t.id);
             });
-
-            // Movement vectors
-            const leftVec = [-side * 0.75, 0];
-            const rightVec = [side * 0.75, 0];
-            const backVecUp = [0, h];
-            const backVecDown = [0, -h];
 
             function neighborId(fromId, dir) {
                 const t = triangles[fromId];
@@ -288,7 +542,6 @@
                 } else if (dir === "right") {
                     vx = side * 0.75;
                 } else if (dir === "vertical") {
-                    // For up triangles, neighbor is above; for down, neighbor is below
                     vy = t.up ? h * 1.25 : -h * 1.25;
                 } else {
                     return null;
@@ -297,15 +550,13 @@
                 return centroidMap.has(targetKey) ? centroidMap.get(targetKey) : null;
             }
 
-            // Player spawn AKA starting position
-            let player1Id = 3; // Top of board
-            let player2Id = triangles.length - 4; // Bottom of board
-            let currentPlayer = 1; // 1 or 2
+            let player1Id = 3;
+            let player2Id = triangles.length - 4;
+            let currentPlayer = 1;
 
             let player1Eliminated = false;
             let player2Eliminated = false;
 
-            // Place 3 pillars on non-edge, non-player-start tiles
             const pillarCount = 4;
             const startLayers = 3;
             let placed = 0;
@@ -315,14 +566,10 @@
             }
 
             function isValidPillarTile(t) {
-                // Not on edge
                 if (isEdgeTile(t)) return false;
-                // Not on columns 1 or second-to-last column
                 if (t.col === 0 || t.col === rows[t.row] - 2) return false;
-                // Not already a pillar, not a player start
                 if (t.isPillar) return false;
                 if (t.id === player1Id || t.id === player2Id) return false;
-                // Not adjacent to another pillar
                 const neighborIds = [
                     neighborId(t.id, "left"),
                     neighborId(t.id, "right"),
@@ -331,7 +578,6 @@
                 for (const nid of neighborIds) {
                     if (nid !== null && triangles[nid].isPillar) return false;
                 }
-                // Not adjacent to edge tile
                 for (const nid of neighborIds) {
                     if (nid !== null && isEdgeTile(triangles[nid])) return false;
                 }
@@ -349,7 +595,6 @@
             }
 
             let lockedTiles = new Set();
-
             let highlightedCornerTiles = [];
             let highlightedAdjacentToCorners = [];
             let highlightedSharedOfAdjacent = [];
@@ -362,18 +607,16 @@
                 else player2Id = id;
             }
 
-            // Compute possible moves for current player
             function getPossibleMoves(id) {
                 return ["left", "right", "vertical"]
                     .map(dir => neighborId(id, dir))
                     .filter(nid =>
                         nid !== null &&
                         !lockedTiles.has(nid) &&
-                        !triangles[nid].isPillar // Prevent moving onto pillars
+                        !triangles[nid].isPillar
                     );
             }
 
-            // Returns array of adjacent pillar IDs with layers > 0
             function getAdjacentPillars(id) {
                 return ["left", "right", "vertical"]
                     .map(dir => neighborId(id, dir))
@@ -386,7 +629,6 @@
                     neighborId(pillarId, "right"),
                     neighborId(pillarId, "vertical")
                 ];
-                // Filter out the player and any nulls
                 return neighbors.filter(nid => nid !== null && nid !== playerId);
             }
 
@@ -404,7 +646,6 @@
                         }
                     });
                 });
-                // Remove duplicates
                 return [...new Set(result)];
             }
 
@@ -414,7 +655,6 @@
                 const neighborCount = {};
                 greenTiles.forEach(greenId => {
                     getNeighbors(greenId).forEach(nid => {
-                        // Exclude the pillar, player, green tiles, and corner tiles
                         if (
                             nid !== pillarId &&
                             nid !== playerId &&
@@ -425,7 +665,6 @@
                         }
                     });
                 });
-                // Only include tiles that are neighbors of 2 or more green tiles
                 return Object.keys(neighborCount)
                     .filter(nid => neighborCount[nid] > 1)
                     .map(nid => parseInt(nid));
@@ -438,32 +677,26 @@
             }
 
             function getCornerTiles(pillarId, playerId) {
-                // The two other adjacent tiles are the "corners"
                 return getOtherAdjacentTiles(pillarId, playerId);
             }
 
-            // The knockPillar function knocks pillar layers off.
             function knockPillar(playerId, pillarId) {
                 const pillar = triangles[pillarId];
                 if (!pillar.isPillar || pillar.pillarLayers <= 0) return;
 
-                // Get all three neighbors
                 const neighbors = [
                     neighborId(pillarId, "left"),
                     neighborId(pillarId, "right"),
                     neighborId(pillarId, "vertical")
                 ];
 
-                // Find which neighbor the player is on
                 let playerNeighborIndex = neighbors.indexOf(playerId);
 
-                // Knock a layer off pillar
                 pillar.pillarLayers--;
                 if (pillar.pillarLayers === 0) {
                     pillar.isPillar = false;
                 }
 
-                // Affect the "opposite" tile(s)
                 const oppositeTiles = getSharedOfAdjacentTiles(pillarId, playerId);
                 oppositeTiles.forEach(oppId => {
                     if (triangles[oppId] && triangles[oppId].layers > 0) {
@@ -473,7 +706,6 @@
                         }
                     }
 
-                    // --- Knock back player if present on the hit tile ---
                     let hitPlayer = null;
                     if (player1Id === oppId && !player1Eliminated) hitPlayer = 1;
                     if (player2Id === oppId && !player2Eliminated) hitPlayer = 2;
@@ -485,18 +717,15 @@
                             neighborId(oppId, "right"),
                             neighborId(oppId, "vertical")
                         ];
-                        // All adjacent tiles (including pillars)
                         const allAdjacents = neighbors.filter(nid =>
                             nid !== null &&
                             !knockAdjacentToCorners.includes(nid) &&
                             player1Id !== nid && player2Id !== nid
                         );
-                        // Only non-pillar, non-locked
                         const validAdjacents = allAdjacents.filter(nid =>
                             !lockedTiles.has(nid) &&
                             !triangles[nid].isPillar
                         );
-                        // Only pillar tiles
                         const pillarAdjacents = allAdjacents.filter(nid =>
                             triangles[nid].isPillar
                         );
@@ -506,18 +735,14 @@
                             if (hitPlayer === 1) player1Id = chosen;
                             if (hitPlayer === 2) player2Id = chosen;
                         } else if (pillarAdjacents.length > 0) {
-                            // Squished by pillar
                             if (hitPlayer === 1) player1Eliminated = true;
                             if (hitPlayer === 2) player2Eliminated = true;
-                            // Optionally, move them off the board:
                             if (hitPlayer === 1) player1Id = -1;
                             if (hitPlayer === 2) player2Id = -1;
-                            // Show message
                             document.getElementById('message').textContent =
                                 `Player ${hitPlayer} was squished by a pillar and is eliminated!`;
                             svg.style.pointerEvents = "none";
                         } else {
-                            // Knocked off the board
                             if (hitPlayer === 1) player1Eliminated = true;
                             if (hitPlayer === 2) player2Eliminated = true;
                             if (hitPlayer === 1) player1Id = -1;
@@ -527,12 +752,10 @@
                             svg.style.pointerEvents = "none";
                         }
                     }
-                    // --- End knockback ---
                 });
                 render();
             }
 
-            // UI: Knock Pillar Button (create only once)
             let knockBtn = document.createElement("button");
             knockBtn.textContent = "Knock Pillar";
             knockBtn.style.display = "none";
@@ -540,18 +763,14 @@
                 const playerId = getCurrentPlayerId();
                 const adjPillars = getAdjacentPillars(playerId);
                 if (adjPillars.length > 0) {
-                    // For simplicity, knock the first adjacent pillar
                     knockPillar(playerId, adjPillars[0]);
-                    // Switch turn after knocking
                     currentPlayer = currentPlayer === 1 ? 2 : 1;
                     render();
                 }
             };
             document.querySelector('.controls').insertBefore(knockBtn, document.getElementById('message'));
 
-            // Render player and highlights
             function render() {
-                // 1. Clear all highlight classes
                 triangles.forEach(t => {
                     t.svg.classList.remove("possible-move");
                     t.svg.classList.remove("corner-highlight");
@@ -559,7 +778,6 @@
                     t.svg.classList.remove("shared-adjacent-highlight");
                 });
 
-                // 2. Set base fill and pillar/locked/layer logic
                 triangles.forEach(t => {
                     t.svg.setAttribute("stroke", "#000000");
                     t.svg.setAttribute("opacity", "1");
@@ -593,7 +811,6 @@
                     }
                 });
 
-                // 3. Highlight possible moves for current player
                 getPossibleMoves(getCurrentPlayerId()).forEach(nid => {
                     if (nid !== player1Id && nid !== player2Id) {
                         const t = triangles[nid];
@@ -602,7 +819,6 @@
                     }
                 });
 
-                // 4. Show knock button if adjacent to pillar and update highlightedCornerTiles
                 const adjPillars = getAdjacentPillars(getCurrentPlayerId());
                 knockBtn.style.display = adjPillars.length > 0 ? "" : "none";
                 if (adjPillars.length > 0) {
@@ -615,15 +831,13 @@
                     highlightedSharedOfAdjacent = [];
                 }
 
-                // 5. Highlight corner tiles (do this last!)                
                 highlightedSharedOfAdjacent.forEach(id => {
                     if (triangles[id] && triangles[id].svg) {
-                        triangles[id].svg.setAttribute("fill", "#ff6e6e"); // pink highlight
+                        triangles[id].svg.setAttribute("fill", "#ff6e6e");
                         triangles[id].svg.classList.add("shared-adjacent-highlight");
                     }
                 });
 
-                // 6. Position player pieces
                 if (!player1Eliminated && player1Id >= 0) {
                     const t1 = triangles[player1Id];
                     player1Circle.setAttribute("cx", t1.cx);
@@ -641,7 +855,6 @@
                     player2Circle.style.display = "none";
                 }
 
-                // 7. Message
                 const p = triangles[getCurrentPlayerId()];
 
                 if (player1Eliminated) {
@@ -659,58 +872,36 @@
                     `Player ${currentPlayer}'s turn. You are on tile #${getCurrentPlayerId() + 1} (row ${p.row + 1}, col ${p.col + 1}). Click a highlighted tile to move.`;
             }
 
-            // Click handler for movement
             svg.addEventListener('click', (ev) => {
                 const pt = ev.target;
                 if (pt.tagName === "polygon") {
                     const id = parseInt(pt.dataset.id);
                     if ((id === player1Id || id === player2Id)) return;
                     if (!isNaN(id) && getPossibleMoves(getCurrentPlayerId()).includes(id)) {
-                        // Decrement the layer count of the previous tile
                         const prevId = getCurrentPlayerId();
                         triangles[prevId].layers = Math.max(0, triangles[prevId].layers - 1);
-                        // Only lock the tile if all layers are gone
                         if (triangles[prevId].layers === 0) {
                             lockedTiles.add(prevId);
                         }
                         setCurrentPlayerId(id);
-                        // Switch turn
                         currentPlayer = currentPlayer === 1 ? 2 : 1;
 
-                        // Check if the next player has any moves
                         const canKnockPillar = getAdjacentPillars(getCurrentPlayerId()).length > 0;
                         if (getPossibleMoves(getCurrentPlayerId()).length === 0 && !canKnockPillar) {
-                            // The next player cannot move, so the previous player wins
-                            //const winner = currentPlayer === 1 ? 2 : 1;
                             if (currentPlayer === 1) {
                                 player1Eliminated = true;
                             }
                             else {
                                 player2Eliminated = true;
                             }
-                            /*
-                            render();
-                            document.getElementById('message').textContent =
-                                `Player ${winner} wins! Player ${currentPlayer} has no available moves.`;
-                            // Optionally, disable further moves
-                            svg.style.pointerEvents = "none";
-                            return;
-                            */
                         }
                         render();
                     }
                 }
             });
 
-            // Initial render
             render();
-
-            // Remove movement buttons and update info
-            document.querySelector('.btn-row').style.display = 'none';
-            document.querySelector('.info').innerHTML = "Click a highlighted tile to move.<br><small>Only adjacent tiles are allowed.</small>";
-
-        })();
+        }
     </script>
-
 </body>
 </html>
