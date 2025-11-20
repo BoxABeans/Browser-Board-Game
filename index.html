@@ -775,6 +775,73 @@
                 render();
             }
 
+            // ---------------------------
+            // AI configuration & helpers
+            // ---------------------------
+            const aiEnabled = true;      // set false to disable AI
+            const aiPlayer = 2;          // 1 = player1, 2 = player2 (AI will take this role)
+
+            function scheduleAIMove() {
+                // If AI is enabled and it's the AI's turn and game still running, schedule a move
+                if (!aiEnabled) return;
+                if (currentPlayer !== aiPlayer) return;
+                if (player1Eliminated || player2Eliminated) return;
+                // small randomized delay
+                setTimeout(aiMakeMove, 450 + Math.random() * 700);
+            }
+
+            function aiMakeMove() {
+                if (!aiEnabled) return;
+                if (currentPlayer !== aiPlayer) return;
+                if (player1Eliminated || player2Eliminated) return;
+
+                const myId = getCurrentPlayerId();
+                // Prefer knocking a pillar sometimes if adjacent
+                const adjPillars = getAdjacentPillars(myId);
+                if (adjPillars.length > 0 && Math.random() < 0.35) {
+                    // knock the first adjacent pillar
+                    knockPillar(myId, adjPillars[0]);
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    render();
+                    // if next turn belongs to AI again, schedule next move
+                    scheduleAIMove();
+                    return;
+                }
+
+                // Otherwise choose a random possible move
+                const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
+                if (moves.length === 0) {
+                    // no move - could be blocked; toggle player and render
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    render();
+                    scheduleAIMove();
+                    return;
+                }
+
+                const chosen = moves[Math.floor(Math.random() * moves.length)];
+                // replicate same move logic as in click handler
+                const prevId = myId;
+                triangles[prevId].layers = Math.max(0, triangles[prevId].layers - 1);
+                if (triangles[prevId].layers === 0) {
+                    lockedTiles.add(prevId);
+                }
+                setCurrentPlayerId(chosen);
+                currentPlayer = currentPlayer === 1 ? 2 : 1;
+
+                const canKnockPillar = getAdjacentPillars(getCurrentPlayerId()).length > 0;
+                if (getPossibleMoves(getCurrentPlayerId()).length === 0 && !canKnockPillar) {
+                    if (currentPlayer === 1) {
+                        player1Eliminated = true;
+                    }
+                    else {
+                        player2Eliminated = true;
+                    }
+                }
+
+                render();
+                scheduleAIMove();
+            }
+
             let knockBtn = document.createElement("button");
             knockBtn.textContent = "Knock Pillar";
             knockBtn.style.display = "none";
@@ -785,6 +852,8 @@
                     knockPillar(playerId, adjPillars[0]);
                     currentPlayer = currentPlayer === 1 ? 2 : 1;
                     render();
+                    // If next turn is the AI's, schedule it
+                    scheduleAIMove();
                 }
             };
             document.querySelector('.controls').insertBefore(knockBtn, document.getElementById('message'));
@@ -889,6 +958,9 @@
 
                 document.getElementById('message').textContent =
                     `Player ${currentPlayer}'s turn. You are on tile #${getCurrentPlayerId() + 1} (row ${p.row + 1}, col ${p.col + 1}). Click a highlighted tile to move.`;
+
+                // If it's AI's turn, schedule a move
+                scheduleAIMove();
             }
 
             svg.addEventListener('click', (ev) => {
@@ -915,6 +987,9 @@
                             }
                         }
                         render();
+
+                        // If the next turn belongs to the AI, schedule it
+                        scheduleAIMove();
                     }
                 }
             });
