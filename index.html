@@ -306,14 +306,20 @@
                     <label for="aiPlayerSelect">AI Controls:</label>
                     <select id="aiPlayerSelect" style="padding:6px;border-radius:6px;background:#0b1413;color:#fff;border:1px solid rgba(255,255,255,0.04);">
                         <option value="1">Player 1 (🔵)</option>
-                        <option value="2" selected>
-                            Player 2 (🔴
-                            )
-                        </option>
+                        <option value="2" selected>Player 2 (🔴)</option>
                     </select>
                 </div>
 
-                <p class="settings-note">Toggle the AI and choose which player it controls. Changes take effect when you start the next game.</p>
+                <div class="settings-row" style="margin-top: 12px;">
+                    <label for="aiDifficultySelect">AI Difficulty:</label>
+                    <select id="aiDifficultySelect" style="padding:6px;border-radius:6px;background:#0b1413;color:#fff;border:1px solid rgba(255,255,255,0.04);">
+                        <option value="easy" selected>Easy</option>
+                        <option value="medium">Medium (MCTS)</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+
+                <p class="settings-note">Toggle the AI, choose which player it controls, and select difficulty. Changes take effect when you start the next game.</p>
             </div>
 
             <button class="back-btn" onclick="showScreen('mainMenu')">← Back to Menu</button>
@@ -430,7 +436,8 @@
 
             <div class="controls">
                 <h2>Controls</h2>
-                <div class="info">Click a highlighted tile to move.</div>
+                <!-- AI status (shows difficulty and which player is controlled by AI) -->
+                <div id="aiStatus" class="info" aria-live="polite">AI: Off</div>
 
                 <div class="legend">
                     <span><i class="swatch" style="background:#7da7d9"></i>Player 1</span>
@@ -779,7 +786,61 @@
                 5. Pillar is knocked, affecting shared tiles and possibly players.
              * -------------
              */
-            function knockPillar(playerId, pillarId) {
+            function promiseAnimation(fn) {
+                return new Promise(resolve => fn(resolve));
+            }
+
+            // small helper: animate a polygon pulsing its fill then restoring
+            function promisePulseTile(tileId, color = '#ff6e6e', duration = 300) {
+                const t = triangles[tileId];
+                if (!t || !t.svg) return Promise.resolve();
+                const orig = t.svg.getAttribute('fill') || '#ffffff';
+                return new Promise(resolve => {
+                    t.svg.setAttribute('fill', color);
+                    // quick pulse using timeout; keep it simple and robust
+                    setTimeout(() => {
+                        t.svg.setAttribute('fill', orig);
+                        resolve();
+                    }, duration);
+                });
+            }
+
+            // small helper: bounce the pillar polygon up then back
+            function promisePillarBounce(pillarId, magnitude = 10, duration = 300) {
+                const t = triangles[pillarId];
+                if (!t || !t.svg) return Promise.resolve();
+                const start = performance.now();
+                const total = duration;
+                function step(now, resolve) {
+                    const elapsed = now - start;
+                    const progress = Math.min(1, elapsed / total);
+                    // simple ease-out bounce
+                    const dy = Math.sin(progress * Math.PI) * -magnitude;
+                    t.svg.setAttribute('transform', `translate(0,${dy})`);
+                    if (progress < 1) requestAnimationFrame(n => step(n, resolve));
+                    else {
+                        t.svg.removeAttribute('transform');
+                        resolve();
+                    }
+                }
+                return new Promise(resolve => requestAnimationFrame(n => step(n, resolve)));
+            }
+
+            // reuse animateMove (existing) by wrapping it in a Promise
+            function promiseAnimateMove(circleEl, fromX, fromY, toX, toY, duration = 350) {
+                return new Promise(resolve => animateMove(circleEl, fromX, fromY, toX, toY, duration, resolve));
+            }
+
+            /* -------------
+               NOTE: Chronilogical order of pillar knock process:
+                1. Other tiles adjacent to the knocked pillar are detected (getOtherAdjacentTiles).
+                2. Corner tiles, the tiles adjacent to the other tiles, are identified (getCornerTiles).
+                3. Adjacent to corner tiles are computed (getAdjacentToCornerTiles).
+                4. Shared of adjacent tiles are determined (getSharedOfAdjacentTiles).
+                5. Pillar is knocked, affecting shared tiles and possibly players.
+             * -------------
+             */
+            async function knockPillar(playerId, pillarId) {
                 /*
                  * Apply pillar knock rules:
                  * - reduce pillar's pillarLayers; if becomes 0, remove pillar flag
@@ -792,7 +853,7 @@
                  * After all effects, call render() to update UI.
                  */
                 const pillar = triangles[pillarId];
-                if (!pillar.isPillar || pillar.pillarLayers <= 0) return;
+                if (!pillar || !pillar.isPillar || pillar.pillarLayers <= 0) return;
 
                 // neighbors (left,right,vertical) used to find playerNeighborIndex if needed
                 const neighbors = [
@@ -801,36 +862,25 @@
                     neighborId(pillarId, "vertical")
                 ];
 
-                // decrement pillar durability
-                pillar.pillarLayers--;
-                if (pillar.pillarLayers === 0) {
-                    pillar.isPillar = false;
-                }
-
-                // Damage shared/opposite tiles
+                // Determine affected tiles and any players that will be hit BEFORE state changes,
+                // so we can animate their pushes to computed destinations.
                 const oppositeTiles = getSharedOfAdjacentTiles(pillarId, playerId);
-                oppositeTiles.forEach(oppId => {
-                    if (triangles[oppId] && triangles[oppId].layers > 0) {
-                        triangles[oppId].layers--;
-                        if (triangles[oppId].layers === 0) {
-                            lockedTiles.add(oppId);
-                        }
-                    }
 
-                    // Handle hitting a player on that tile: attempt to push or eliminate
+                // For each opposite tile, compute whether a player sits there and whether they'll be pushed and where.
+                const hits = []; // { hitPlayer:1|2, oppId, chosenDest }
+                oppositeTiles.forEach(oppId => {
                     let hitPlayer = null;
                     if (player1Id === oppId && !player1Eliminated) hitPlayer = 1;
                     if (player2Id === oppId && !player2Eliminated) hitPlayer = 2;
-
                     if (hitPlayer) {
-                        // Attempt to move the hit player to a valid adjacent tile; fallback to elimination.
+                        // Compute push destination choices same as existing logic
                         const knockAdjacentToCorners = getAdjacentToCornerTiles(pillarId, hitPlayer === 1 ? player1Id : player2Id);
-                        const neighbors = [
+                        const adjNeighbors = [
                             neighborId(oppId, "left"),
                             neighborId(oppId, "right"),
                             neighborId(oppId, "vertical")
                         ];
-                        const allAdjacents = neighbors.filter(nid =>
+                        const allAdjacents = adjNeighbors.filter(nid =>
                             nid !== null &&
                             !knockAdjacentToCorners.includes(nid) &&
                             player1Id !== nid && player2Id !== nid
@@ -843,33 +893,101 @@
                             triangles[nid].isPillar
                         );
 
+                        let chosen = null;
                         if (validAdjacents.length > 0) {
-                            // move the player to a random valid adjacent tile
-                            const chosen = validAdjacents[Math.floor(Math.random() * validAdjacents.length)];
-                            if (hitPlayer === 1) player1Id = chosen;
-                            if (hitPlayer === 2) player2Id = chosen;
+                            chosen = validAdjacents[Math.floor(Math.random() * validAdjacents.length)];
                         } else if (pillarAdjacents.length > 0) {
-                            // squished by a pillar: eliminate
-                            if (hitPlayer === 1) player1Eliminated = true;
-                            if (hitPlayer === 2) player2Eliminated = true;
-                            if (hitPlayer === 1) player1Id = -1;
-                            if (hitPlayer === 2) player2Id = -1;
-                            document.getElementById('message').textContent =
-                                `Player ${hitPlayer} was squished by a pillar and is eliminated!`;
-                            svg.style.pointerEvents = "none";
+                            chosen = "__SQUISHED__";
                         } else {
-                            // knocked off the board: eliminate
-                            if (hitPlayer === 1) player1Eliminated = true;
-                            if (hitPlayer === 2) player2Eliminated = true;
-                            if (hitPlayer === 1) player1Id = -1;
-                            if (hitPlayer === 2) player2Id = -1;
-                            document.getElementById('message').textContent =
-                                `Player ${hitPlayer} was knocked off the board and is eliminated!`;
-                            svg.style.pointerEvents = "none";
+                            chosen = "__KNOCKED_OFF__";
+                        }
+
+                        hits.push({ hitPlayer, oppId, chosen, validAdjacents, pillarAdjacents });
+                    }
+                });
+
+                // Disable input while animating knock sequence
+                isAnimating = true;
+                svg.style.pointerEvents = "none";
+
+                // Animate pillar bounce + pulse opposite tiles in parallel
+                const pulsePromises = oppositeTiles.map(id => promisePulseTile(id, '#ff6e6e', 320));
+                const pillarPromise = promisePillarBounce(pillarId, 10, 360);
+                await Promise.all([pillarPromise, ...pulsePromises]);
+
+                // Now apply state changes (decrement pillar durability, damage tiles)
+                pillar.pillarLayers--;
+                if (pillar.pillarLayers === 0) {
+                    pillar.isPillar = false;
+                }
+
+                oppositeTiles.forEach(oppId => {
+                    if (triangles[oppId] && triangles[oppId].layers > 0) {
+                        triangles[oppId].layers--;
+                        if (triangles[oppId].layers === 0) {
+                            lockedTiles.add(oppId);
                         }
                     }
                 });
 
+                // For any hit players, perform push animations to chosen valid destination, then finalize their id or elimination
+                const pushPromises = hits.map(async (hit) => {
+                    if (hit.chosen === "__SQUISHED__") {
+                        // squished: no movement animation; show small red pulse then eliminate
+                        await promisePulseTile(hit.oppId, '#ff3b3b', 360);
+                        if (hit.hitPlayer === 1) {
+                            player1Eliminated = true;
+                            player1Id = -1;
+                        } else {
+                            player2Eliminated = true;
+                            player2Id = -1;
+                        }
+                        // message set below in render()
+                        return;
+                    }
+                    if (hit.chosen === "__KNOCKED_OFF__") {
+                        // knocked off board: pulse then eliminate
+                        await promisePulseTile(hit.oppId, '#ff6e6e', 360);
+                        if (hit.hitPlayer === 1) {
+                            player1Eliminated = true;
+                            player1Id = -1;
+                        } else {
+                            player2Eliminated = true;
+                            player2Id = -1;
+                        }
+                        return;
+                    }
+
+                    // animate the pushed player's circle from their current tile to chosen
+                    const fromTile = triangles[hit.oppId];
+                    const toTile = triangles[hit.chosen];
+                    const circleEl = hit.hitPlayer === 1 ? player1Circle : player2Circle;
+                    const fromX = fromTile.cx;
+                    const fromY = fromTile.cy + 22;
+                    const toX = toTile.cx;
+                    const toY = toTile.cy + 22;
+                    await promiseAnimateMove(circleEl, fromX, fromY, toX, toY, 360);
+
+                    // finalize assignment
+                    if (hit.hitPlayer === 1) player1Id = hit.chosen;
+                    else player2Id = hit.chosen;
+                });
+
+                // Wait for all push animations to complete
+                await Promise.all(pushPromises);
+
+                // Re-enable interactions
+                isAnimating = false;
+                svg.style.pointerEvents = "";
+
+                // If a player was squished or knocked off, set message and potentially disable board (same behavior as before)
+                const anySquished = hits.some(h => h.chosen === "__SQUISHED__");
+                if (anySquished) {
+                    // Use the existing message logic: render will show text and pointerEvents may be toggled
+                    // (we already set elimination flags above)
+                }
+
+                // Finally update UI
                 render();
             }
 
@@ -879,8 +997,11 @@
             // Read UI settings (set in Settings screen) so user can toggle AI before starting game.
             const aiEnabledEl = document.getElementById('aiEnabledCheckbox');
             const aiPlayerEl = document.getElementById('aiPlayerSelect');
+            const aiDifficultyEl = document.getElementById('aiDifficultySelect');
+
             const aiEnabled = aiEnabledEl ? aiEnabledEl.checked : true;
             const aiPlayer = aiPlayerEl ? parseInt(aiPlayerEl.value, 10) : 2;
+            const aiDifficulty = aiDifficultyEl ? aiDifficultyEl.value : 'easy';
 
             function scheduleAIMove() {
                 // If AI is enabled and it's the AI's turn and game still running, schedule a move
@@ -891,30 +1012,372 @@
                 setTimeout(aiMakeMove, 450 + Math.random() * 700);
             }
 
-            function aiMakeMove() {
-                /*
-                 * Basic AI:
-                 * - If a pillar is adjacent, 35% chance to knock it.
-                 * - Otherwise choose a random legal move (excluding occupied tiles).
-                 * - Apply the same move side-effects (decrement layers for the tile left,
-                 *   mark locked if layers hit 0, switch currentPlayer, check elimination).
-                 *
-                 * After finishing, call render() and schedule next AI move if appropriate.
-                 */
+            // ---------------------------
+            // Movement animation helpers
+            // ---------------------------
+            // Adds a smooth slide for player circles. Does not remove existing game comments.
+            let isAnimating = false;
+
+            function animateMove(circleEl, fromX, fromY, toX, toY, duration = 350, onComplete) {
+                const start = performance.now();
+                function easeInOut(t) {
+                    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                }
+                function step(now) {
+                    const elapsed = now - start;
+                    let t = Math.min(1, elapsed / duration);
+                    const eased = easeInOut(t);
+                    const x = fromX + (toX - fromX) * eased;
+                    const y = fromY + (toY - fromY) * eased;
+                    circleEl.setAttribute('cx', x);
+                    circleEl.setAttribute('cy', y);
+                    if (t < 1) requestAnimationFrame(step);
+                    else if (onComplete) onComplete();
+                }
+                requestAnimationFrame(step);
+            }
+
+            function performMoveTo(targetId) {
+                // Prevent starting another animation while one is running
+                if (isAnimating) return;
+
+                const prevId = getCurrentPlayerId();
+
+                // apply tile leave effects immediately (layers decrement)
+                triangles[prevId].layers = Math.max(0, triangles[prevId].layers - 1);
+                if (triangles[prevId].layers === 0) {
+                    lockedTiles.add(prevId);
+                }
+
+                const from = triangles[prevId];
+                const to = triangles[targetId];
+                const circleEl = currentPlayer === 1 ? player1Circle : player2Circle;
+                const fromX = from.cx;
+                const fromY = from.cy + 22;
+                const toX = to.cx;
+                const toY = to.cy + 22;
+
+                isAnimating = true;
+                // disable pointer events while animating to avoid input races
+                svg.style.pointerEvents = "none";
+
+                animateMove(circleEl, fromX, fromY, toX, toY, 350, () => {
+                    // finalize move after animation
+                    setCurrentPlayerId(targetId);
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+
+                    const canKnockPillar = getAdjacentPillars(getCurrentPlayerId()).length > 0;
+                    if (getPossibleMoves(getCurrentPlayerId()).length === 0 && !canKnockPillar) {
+                        if (currentPlayer === 1) player1Eliminated = true;
+                        else player2Eliminated = true;
+                    }
+
+                    isAnimating = false;
+                    svg.style.pointerEvents = "";
+                    render();
+                    scheduleAIMove();
+                });
+            }
+
+            // ---------------------------
+            // MCTS (Medium AI) implementation
+            // ---------------------------
+            function cloneState() {
+                return {
+                    layers: triangles.map(t => t.layers),
+                    isPillar: triangles.map(t => !!t.isPillar),
+                    pillarLayers: triangles.map(t => t.pillarLayers || 0),
+                    player1Id: player1Id,
+                    player2Id: player2Id,
+                    locked: new Set(Array.from(lockedTiles)),
+                    currentPlayer: currentPlayer
+                };
+            }
+
+            function getActionsFromState(state) {
+                const pos = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
+                if (pos == null || pos < 0) return [];
+                const neighborIds = ["left", "right", "vertical"].map(dir => neighborId(pos, dir));
+                const moves = neighborIds
+                    .filter(nid => nid !== null && !state.locked.has(nid) && !state.isPillar[nid])
+                    .map(nid => ({ type: 'move', to: nid }));
+                const knocks = neighborIds
+                    .filter(nid => nid !== null && state.isPillar[nid] && state.pillarLayers[nid] > 0)
+                    .map(nid => ({ type: 'knock', pillar: nid }));
+                return knocks.concat(moves);
+            }
+
+            function applyActionToState(state, action) {
+                if (action.type === 'move') {
+                    const prev = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
+                    if (prev >= 0 && state.layers[prev] > 0) {
+                        state.layers[prev] = Math.max(0, state.layers[prev] - 1);
+                        if (state.layers[prev] === 0) state.locked.add(prev);
+                    }
+                    if (state.currentPlayer === 1) state.player1Id = action.to;
+                    else state.player2Id = action.to;
+                    state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
+                    return state;
+                }
+
+                if (action.type === 'knock') {
+                    const pillarId = action.pillar;
+                    state.pillarLayers[pillarId] = Math.max(0, state.pillarLayers[pillarId] - 1);
+                    if (state.pillarLayers[pillarId] === 0) state.isPillar[pillarId] = false;
+
+                    const actingTile = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
+                    const shared = getSharedOfAdjacentTiles(pillarId, actingTile);
+                    shared.forEach(oppId => {
+                        if (state.layers[oppId] > 0) {
+                            state.layers[oppId] = Math.max(0, state.layers[oppId] - 1);
+                            if (state.layers[oppId] === 0) state.locked.add(oppId);
+                        }
+                    });
+
+                    // push logic (same simplified rules as game)
+                    shared.forEach(oppId => {
+                        if (state.player1Id === oppId) {
+                            const knockAdj = getAdjacentToCornerTiles(pillarId, state.player1Id);
+                            const adj = [neighborId(oppId, "left"), neighborId(oppId, "right"), neighborId(oppId, "vertical")];
+                            const allAdj = adj.filter(nid => nid !== null && !knockAdj.includes(nid) && state.player1Id !== nid && state.player2Id !== nid);
+                            const validAdj = allAdj.filter(nid => !state.locked.has(nid) && !state.isPillar[nid]);
+                            const pillarAdj = allAdj.filter(nid => state.isPillar[nid]);
+                            if (validAdj.length > 0) state.player1Id = validAdj[Math.floor(Math.random() * validAdj.length)];
+                            else if (pillarAdj.length > 0) state.player1Id = -1;
+                            else state.player1Id = -1;
+                        }
+                        if (state.player2Id === oppId) {
+                            const knockAdj = getAdjacentToCornerTiles(pillarId, state.player2Id);
+                            const adj = [neighborId(oppId, "left"), neighborId(oppId, "right"), neighborId(oppId, "vertical")];
+                            const allAdj = adj.filter(nid => nid !== null && !knockAdj.includes(nid) && state.player1Id !== nid && state.player2Id !== nid);
+                            const validAdj = allAdj.filter(nid => !state.locked.has(nid) && !state.isPillar[nid]);
+                            const pillarAdj = allAdj.filter(nid => state.isPillar[nid]);
+                            if (validAdj.length > 0) state.player2Id = validAdj[Math.floor(Math.random() * validAdj.length)];
+                            else if (pillarAdj.length > 0) state.player2Id = -1;
+                            else state.player2Id = -1;
+                        }
+                    });
+
+                    state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
+                    return state;
+                }
+                return state;
+            }
+
+            function checkWinner(state) {
+                if (state.player1Id === -1 || state.player1Id == null) return 2;
+                if (state.player2Id === -1 || state.player2Id == null) return 1;
+                const cur = state.currentPlayer;
+                const pos = cur === 1 ? state.player1Id : state.player2Id;
+                if (pos < 0) return cur === 1 ? 2 : 1;
+                const neighborIds = ["left", "right", "vertical"].map(dir => neighborId(pos, dir));
+                const hasMove = neighborIds.some(nid => nid !== null && !state.locked.has(nid) && !state.isPillar[nid]);
+                const hasKnock = neighborIds.some(nid => nid !== null && state.isPillar[nid] && state.pillarLayers[nid] > 0);
+                if (!hasMove && !hasKnock) return cur === 1 ? 2 : 1;
+                return null;
+            }
+
+            function randomPlayout(sourceState, maxDepth = 80) {
+                const state = {
+                    layers: sourceState.layers.slice(),
+                    isPillar: sourceState.isPillar.slice(),
+                    pillarLayers: sourceState.pillarLayers.slice(),
+                    player1Id: sourceState.player1Id,
+                    player2Id: sourceState.player2Id,
+                    locked: new Set(Array.from(sourceState.locked)),
+                    currentPlayer: sourceState.currentPlayer
+                };
+                for (let depth = 0; depth < maxDepth; depth++) {
+                    const w = checkWinner(state);
+                    if (w) return w;
+                    const acts = getActionsFromState(state);
+                    if (acts.length === 0) return state.currentPlayer === 1 ? 2 : 1;
+                    const a = acts[Math.floor(Math.random() * acts.length)];
+                    applyActionToState(state, a);
+                }
+                const s1 = (state.player1Id >= 0) ? state.layers[state.player1Id] || 0 : 0;
+                const s2 = (state.player2Id >= 0) ? state.layers[state.player2Id] || 0 : 0;
+                if (s1 === s2) return null;
+                return s1 > s2 ? 1 : 2;
+            }
+
+            function MCTSNode(state, parent = null, actionFromParent = null) {
+                this.state = state;
+                this.parent = parent;
+                this.actionFromParent = actionFromParent;
+                this.children = [];
+                this.visits = 0;
+                this.wins = 0;
+                this.untried = getActionsFromState(state);
+            }
+            MCTSNode.prototype.select = function () {
+                const C = Math.sqrt(2);
+                let best = null, bestVal = -Infinity;
+                for (const ch of this.children) {
+                    const n = ch.node;
+                    const winRate = n.wins / (n.visits || 1);
+                    const uct = winRate + C * Math.sqrt(Math.log(this.visits + 1) / (n.visits + 1));
+                    if (uct > bestVal) { bestVal = uct; best = ch; }
+                }
+                return best;
+            };
+            MCTSNode.prototype.expand = function () {
+                if (this.untried.length === 0) return null;
+                const idx = Math.floor(Math.random() * this.untried.length);
+                const action = this.untried.splice(idx, 1)[0];
+                const nextState = {
+                    layers: this.state.layers.slice(),
+                    isPillar: this.state.isPillar.slice(),
+                    pillarLayers: this.state.pillarLayers.slice(),
+                    player1Id: this.state.player1Id,
+                    player2Id: this.state.player2Id,
+                    locked: new Set(Array.from(this.state.locked)),
+                    currentPlayer: this.state.currentPlayer
+                };
+                applyActionToState(nextState, action);
+                const child = new MCTSNode(nextState, this, action);
+                this.children.push({ action, node: child });
+                return child;
+            };
+
+            async function mctsMakeMove() {
+                const aiStatusEl = document.getElementById('aiStatus');
+                if (aiStatusEl) aiStatusEl.textContent = 'AI: THINKING...';
+
+                const timeBudget = 220; // ms (tweak: lower for snappier UI, higher for stronger play)
+                const start = performance.now();
+                const rootState = cloneState();
+                const root = new MCTSNode(rootState);
+
+                let iterations = 0;
+                while (performance.now() - start < timeBudget) {
+                    iterations++;
+
+                    let node = root;
+                    // selection
+                    while (node.untried.length === 0 && node.children.length > 0) {
+                        const sel = node.select();
+                        if (!sel) break;
+                        node = sel.node;
+                    }
+
+                    // expansion
+                    if (node.untried.length > 0) node = node.expand() || node;
+
+                    // simulation
+                    const simState = {
+                        layers: node.state.layers.slice(),
+                        isPillar: node.state.isPillar.slice(),
+                        pillarLayers: node.state.pillarLayers.slice(),
+                        player1Id: node.state.player1Id,
+                        player2Id: node.state.player2Id,
+                        locked: new Set(Array.from(node.state.locked)),
+                        currentPlayer: node.state.currentPlayer
+                    };
+                    const winner = randomPlayout(simState, 80);
+
+                    // backprop
+                    let back = node;
+                    while (back) {
+                        back.visits += 1;
+                        if (winner === aiPlayer) back.wins += 1;
+                        else if (winner === null) back.wins += 0.5;
+                        back = back.parent;
+                    }
+
+                    // Yield periodically so the browser can run rAF and keep animations smooth
+                    if ((iterations & 15) === 0) {
+                        // await next animation frame (lighter & more predictable than setTimeout(0))
+                        await new Promise(resolve => requestAnimationFrame(resolve));
+                    }
+                }
+
+                // pick best child by visits (tie-break by win rate)
+                let best = null;
+                let bestVisits = -1;
+                for (const ch of root.children) {
+                    if (ch.node.visits > bestVisits) {
+                        bestVisits = ch.node.visits;
+                        best = ch;
+                    } else if (ch.node.visits === bestVisits) {
+                        const aRate = ch.node.wins / (ch.node.visits || 1);
+                        const bRate = best ? best.node.wins / (best.node.visits || 1) : -1;
+                        if (aRate > bRate) best = ch;
+                    }
+                }
+
+                // restore AI status
+                if (aiStatusEl) {
+                    const aiText = aiEnabled ? `${aiDifficulty.toUpperCase()} (Player ${aiPlayer})` : 'Off';
+                    aiStatusEl.textContent = `AI: ${aiText}`;
+                }
+
+                const myId = getCurrentPlayerId();
+                if (!best) {
+                    const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
+                    if (moves.length === 0) {
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+                        render();
+                        scheduleAIMove();
+                        return;
+                    }
+                    performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
+                    return;
+                }
+
+                const chosen = best.action;
+                if (chosen.type === 'knock') {
+                    // knock includes animations internally
+                    knockPillar(myId, chosen.pillar);
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    render();
+                    scheduleAIMove();
+                    return;
+                } else {
+                    performMoveTo(chosen.to);
+                    return;
+                }
+            }
+
+            async function aiMakeMove() {
                 if (!aiEnabled) return;
                 if (currentPlayer !== aiPlayer) return;
                 if (player1Eliminated || player2Eliminated) return;
 
                 const myId = getCurrentPlayerId();
                 const adjPillars = getAdjacentPillars(myId);
-                if (adjPillars.length > 0 && Math.random() < 0.35) {
-                    knockPillar(myId, adjPillars[0]);
-                    currentPlayer = currentPlayer === 1 ? 2 : 1;
-                    render();
-                    scheduleAIMove();
+
+                if (aiDifficulty === 'easy') {
+                    if (adjPillars.length > 0 && Math.random() < 0.35) {
+                        await knockPillar(myId, adjPillars[0]);
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+                        render();
+                        scheduleAIMove();
+                        return;
+                    }
+                    const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
+                    if (moves.length === 0) {
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+                        render();
+                        scheduleAIMove();
+                        return;
+                    }
+                    performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
                     return;
                 }
 
+                if (aiDifficulty === 'medium') {
+                    await mctsMakeMove();
+                    return;
+                }
+
+                // hard falls back to medium for now
+                if (aiDifficulty === 'hard') {
+                    await mctsMakeMove();
+                    return;
+                }
+
+                // final fallback
                 const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
                 if (moves.length === 0) {
                     currentPlayer = currentPlayer === 1 ? 2 : 1;
@@ -922,24 +1385,7 @@
                     scheduleAIMove();
                     return;
                 }
-
-                const chosen = moves[Math.floor(Math.random() * moves.length)];
-                const prevId = myId;
-                triangles[prevId].layers = Math.max(0, triangles[prevId].layers - 1);
-                if (triangles[prevId].layers === 0) {
-                    lockedTiles.add(prevId);
-                }
-                setCurrentPlayerId(chosen);
-                currentPlayer = currentPlayer === 1 ? 2 : 1;
-
-                const canKnockPillar = getAdjacentPillars(getCurrentPlayerId()).length > 0;
-                if (getPossibleMoves(getCurrentPlayerId()).length === 0 && !canKnockPillar) {
-                    if (currentPlayer === 1) player1Eliminated = true;
-                    else player2Eliminated = true;
-                }
-
-                render();
-                scheduleAIMove();
+                performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
             }
 
             let knockBtn = document.createElement("button");
@@ -1038,22 +1484,24 @@
                     }
                 });
 
-                // Update player icon positions
-                if (!player1Eliminated && player1Id >= 0) {
-                    const t1 = triangles[player1Id];
-                    player1Circle.setAttribute("cx", t1.cx);
-                    player1Circle.setAttribute("cy", t1.cy + 22);
-                    player1Circle.style.display = "";
-                } else {
-                    player1Circle.style.display = "none";
-                }
-                if (!player2Eliminated && player2Id >= 0) {
-                    const t2 = triangles[player2Id];
-                    player2Circle.setAttribute("cx", t2.cx);
-                    player2Circle.setAttribute("cy", t2.cy + 22);
-                    player2Circle.style.display = "";
-                } else {
-                    player2Circle.style.display = "none";
+                // Update player icon positions only when not animating (animation owns the circle while moving)
+                if (!isAnimating) {
+                    if (!player1Eliminated && player1Id >= 0) {
+                        const t1 = triangles[player1Id];
+                        player1Circle.setAttribute("cx", t1.cx);
+                        player1Circle.setAttribute("cy", t1.cy + 22);
+                        player1Circle.style.display = "";
+                    } else {
+                        player1Circle.style.display = "none";
+                    }
+                    if (!player2Eliminated && player2Id >= 0) {
+                        const t2 = triangles[player2Id];
+                        player2Circle.setAttribute("cx", t2.cx);
+                        player2Circle.setAttribute("cy", t2.cy + 22);
+                        player2Circle.style.display = "";
+                    } else {
+                        player2Circle.style.display = "none";
+                    }
                 }
 
                 // Game over checks and message update
@@ -1071,6 +1519,13 @@
                 document.getElementById('message').textContent =
                     `Player ${currentPlayer}'s turn. You are on tile #${getCurrentPlayerId() + 1} (row ${p.row + 1}, col ${p.col + 1}). Click a highlighted tile to move.`;
 
+                // update AI status display
+                const aiStatusEl = document.getElementById('aiStatus');
+                if (aiStatusEl) {
+                    const aiText = aiEnabled ? `${aiDifficulty.toUpperCase()} (Player ${aiPlayer})` : 'Off';
+                    aiStatusEl.textContent = `AI: ${aiText}`;
+                }
+
                 // If it's AI's turn, schedule a move
                 scheduleAIMove();
             }
@@ -1081,27 +1536,8 @@
                     const id = parseInt(pt.dataset.id);
                     if ((id === player1Id || id === player2Id)) return;
                     if (!isNaN(id) && getPossibleMoves(getCurrentPlayerId()).includes(id)) {
-                        const prevId = getCurrentPlayerId();
-                        triangles[prevId].layers = Math.max(0, triangles[prevId].layers - 1);
-                        if (triangles[prevId].layers === 0) {
-                            lockedTiles.add(prevId);
-                        }
-                        setCurrentPlayerId(id);
-                        currentPlayer = currentPlayer === 1 ? 2 : 1;
-
-                        const canKnockPillar = getAdjacentPillars(getCurrentPlayerId()).length > 0;
-                        if (getPossibleMoves(getCurrentPlayerId()).length === 0 && !canKnockPillar) {
-                            if (currentPlayer === 1) {
-                                player1Eliminated = true;
-                            }
-                            else {
-                                player2Eliminated = true;
-                            }
-                        }
-                        render();
-
-                        // If the next turn belongs to the AI, schedule it
-                        scheduleAIMove();
+                        // start animated move (performMoveTo handles layer decrement + finalization)
+                        performMoveTo(id);
                     }
                 }
             });
