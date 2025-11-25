@@ -306,20 +306,14 @@
                     <label for="aiPlayerSelect">AI Controls:</label>
                     <select id="aiPlayerSelect" style="padding:6px;border-radius:6px;background:#0b1413;color:#fff;border:1px solid rgba(255,255,255,0.04);">
                         <option value="1">Player 1 (🔵)</option>
-                        <option value="2" selected>Player 2 (🔴)</option>
+                        <option value="2" selected>
+                            Player 2 (🔴
+                            )
+                        </option>
                     </select>
                 </div>
 
-                <div class="settings-row" style="margin-top: 12px;">
-                    <label for="aiDifficultySelect">AI Difficulty:</label>
-                    <select id="aiDifficultySelect" style="padding:6px;border-radius:6px;background:#0b1413;color:#fff;border:1px solid rgba(255,255,255,0.04);">
-                        <option value="easy" selected>Easy</option>
-                        <option value="medium">Medium (MCTS)</option>
-                        <option value="hard">Hard</option>
-                    </select>
-                </div>
-
-                <p class="settings-note">Toggle the AI, choose which player it controls, and select difficulty. Changes take effect when you start the next game.</p>
+                <p class="settings-note">Toggle the AI and choose which player it controls. Changes take effect when you start the next game.</p>
             </div>
 
             <button class="back-btn" onclick="showScreen('mainMenu')">← Back to Menu</button>
@@ -436,8 +430,7 @@
 
             <div class="controls">
                 <h2>Controls</h2>
-                <!-- AI status (shows difficulty and which player is controlled by AI) -->
-                <div id="aiStatus" class="info" aria-live="polite">AI: Off</div>
+                <div class="info">Click a highlighted tile to move.</div>
 
                 <div class="legend">
                     <span><i class="swatch" style="background:#7da7d9"></i>Player 1</span>
@@ -997,11 +990,8 @@
             // Read UI settings (set in Settings screen) so user can toggle AI before starting game.
             const aiEnabledEl = document.getElementById('aiEnabledCheckbox');
             const aiPlayerEl = document.getElementById('aiPlayerSelect');
-            const aiDifficultyEl = document.getElementById('aiDifficultySelect');
-
             const aiEnabled = aiEnabledEl ? aiEnabledEl.checked : true;
             const aiPlayer = aiPlayerEl ? parseInt(aiPlayerEl.value, 10) : 2;
-            const aiDifficulty = aiDifficultyEl ? aiDifficultyEl.value : 'easy';
 
             function scheduleAIMove() {
                 // If AI is enabled and it's the AI's turn and game still running, schedule a move
@@ -1079,305 +1069,30 @@
                 });
             }
 
-            // ---------------------------
-            // MCTS (Medium AI) implementation
-            // ---------------------------
-            function cloneState() {
-                return {
-                    layers: triangles.map(t => t.layers),
-                    isPillar: triangles.map(t => !!t.isPillar),
-                    pillarLayers: triangles.map(t => t.pillarLayers || 0),
-                    player1Id: player1Id,
-                    player2Id: player2Id,
-                    locked: new Set(Array.from(lockedTiles)),
-                    currentPlayer: currentPlayer
-                };
-            }
-
-            function getActionsFromState(state) {
-                const pos = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
-                if (pos == null || pos < 0) return [];
-                const neighborIds = ["left", "right", "vertical"].map(dir => neighborId(pos, dir));
-                const moves = neighborIds
-                    .filter(nid => nid !== null && !state.locked.has(nid) && !state.isPillar[nid])
-                    .map(nid => ({ type: 'move', to: nid }));
-                const knocks = neighborIds
-                    .filter(nid => nid !== null && state.isPillar[nid] && state.pillarLayers[nid] > 0)
-                    .map(nid => ({ type: 'knock', pillar: nid }));
-                return knocks.concat(moves);
-            }
-
-            function applyActionToState(state, action) {
-                if (action.type === 'move') {
-                    const prev = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
-                    if (prev >= 0 && state.layers[prev] > 0) {
-                        state.layers[prev] = Math.max(0, state.layers[prev] - 1);
-                        if (state.layers[prev] === 0) state.locked.add(prev);
-                    }
-                    if (state.currentPlayer === 1) state.player1Id = action.to;
-                    else state.player2Id = action.to;
-                    state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
-                    return state;
-                }
-
-                if (action.type === 'knock') {
-                    const pillarId = action.pillar;
-                    state.pillarLayers[pillarId] = Math.max(0, state.pillarLayers[pillarId] - 1);
-                    if (state.pillarLayers[pillarId] === 0) state.isPillar[pillarId] = false;
-
-                    const actingTile = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
-                    const shared = getSharedOfAdjacentTiles(pillarId, actingTile);
-                    shared.forEach(oppId => {
-                        if (state.layers[oppId] > 0) {
-                            state.layers[oppId] = Math.max(0, state.layers[oppId] - 1);
-                            if (state.layers[oppId] === 0) state.locked.add(oppId);
-                        }
-                    });
-
-                    // push logic (same simplified rules as game)
-                    shared.forEach(oppId => {
-                        if (state.player1Id === oppId) {
-                            const knockAdj = getAdjacentToCornerTiles(pillarId, state.player1Id);
-                            const adj = [neighborId(oppId, "left"), neighborId(oppId, "right"), neighborId(oppId, "vertical")];
-                            const allAdj = adj.filter(nid => nid !== null && !knockAdj.includes(nid) && state.player1Id !== nid && state.player2Id !== nid);
-                            const validAdj = allAdj.filter(nid => !state.locked.has(nid) && !state.isPillar[nid]);
-                            const pillarAdj = allAdj.filter(nid => state.isPillar[nid]);
-                            if (validAdj.length > 0) state.player1Id = validAdj[Math.floor(Math.random() * validAdj.length)];
-                            else if (pillarAdj.length > 0) state.player1Id = -1;
-                            else state.player1Id = -1;
-                        }
-                        if (state.player2Id === oppId) {
-                            const knockAdj = getAdjacentToCornerTiles(pillarId, state.player2Id);
-                            const adj = [neighborId(oppId, "left"), neighborId(oppId, "right"), neighborId(oppId, "vertical")];
-                            const allAdj = adj.filter(nid => nid !== null && !knockAdj.includes(nid) && state.player1Id !== nid && state.player2Id !== nid);
-                            const validAdj = allAdj.filter(nid => !state.locked.has(nid) && !state.isPillar[nid]);
-                            const pillarAdj = allAdj.filter(nid => state.isPillar[nid]);
-                            if (validAdj.length > 0) state.player2Id = validAdj[Math.floor(Math.random() * validAdj.length)];
-                            else if (pillarAdj.length > 0) state.player2Id = -1;
-                            else state.player2Id = -1;
-                        }
-                    });
-
-                    state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
-                    return state;
-                }
-                return state;
-            }
-
-            function checkWinner(state) {
-                if (state.player1Id === -1 || state.player1Id == null) return 2;
-                if (state.player2Id === -1 || state.player2Id == null) return 1;
-                const cur = state.currentPlayer;
-                const pos = cur === 1 ? state.player1Id : state.player2Id;
-                if (pos < 0) return cur === 1 ? 2 : 1;
-                const neighborIds = ["left", "right", "vertical"].map(dir => neighborId(pos, dir));
-                const hasMove = neighborIds.some(nid => nid !== null && !state.locked.has(nid) && !state.isPillar[nid]);
-                const hasKnock = neighborIds.some(nid => nid !== null && state.isPillar[nid] && state.pillarLayers[nid] > 0);
-                if (!hasMove && !hasKnock) return cur === 1 ? 2 : 1;
-                return null;
-            }
-
-            function randomPlayout(sourceState, maxDepth = 80) {
-                const state = {
-                    layers: sourceState.layers.slice(),
-                    isPillar: sourceState.isPillar.slice(),
-                    pillarLayers: sourceState.pillarLayers.slice(),
-                    player1Id: sourceState.player1Id,
-                    player2Id: sourceState.player2Id,
-                    locked: new Set(Array.from(sourceState.locked)),
-                    currentPlayer: sourceState.currentPlayer
-                };
-                for (let depth = 0; depth < maxDepth; depth++) {
-                    const w = checkWinner(state);
-                    if (w) return w;
-                    const acts = getActionsFromState(state);
-                    if (acts.length === 0) return state.currentPlayer === 1 ? 2 : 1;
-                    const a = acts[Math.floor(Math.random() * acts.length)];
-                    applyActionToState(state, a);
-                }
-                const s1 = (state.player1Id >= 0) ? state.layers[state.player1Id] || 0 : 0;
-                const s2 = (state.player2Id >= 0) ? state.layers[state.player2Id] || 0 : 0;
-                if (s1 === s2) return null;
-                return s1 > s2 ? 1 : 2;
-            }
-
-            function MCTSNode(state, parent = null, actionFromParent = null) {
-                this.state = state;
-                this.parent = parent;
-                this.actionFromParent = actionFromParent;
-                this.children = [];
-                this.visits = 0;
-                this.wins = 0;
-                this.untried = getActionsFromState(state);
-            }
-            MCTSNode.prototype.select = function () {
-                const C = Math.sqrt(2);
-                let best = null, bestVal = -Infinity;
-                for (const ch of this.children) {
-                    const n = ch.node;
-                    const winRate = n.wins / (n.visits || 1);
-                    const uct = winRate + C * Math.sqrt(Math.log(this.visits + 1) / (n.visits + 1));
-                    if (uct > bestVal) { bestVal = uct; best = ch; }
-                }
-                return best;
-            };
-            MCTSNode.prototype.expand = function () {
-                if (this.untried.length === 0) return null;
-                const idx = Math.floor(Math.random() * this.untried.length);
-                const action = this.untried.splice(idx, 1)[0];
-                const nextState = {
-                    layers: this.state.layers.slice(),
-                    isPillar: this.state.isPillar.slice(),
-                    pillarLayers: this.state.pillarLayers.slice(),
-                    player1Id: this.state.player1Id,
-                    player2Id: this.state.player2Id,
-                    locked: new Set(Array.from(this.state.locked)),
-                    currentPlayer: this.state.currentPlayer
-                };
-                applyActionToState(nextState, action);
-                const child = new MCTSNode(nextState, this, action);
-                this.children.push({ action, node: child });
-                return child;
-            };
-
-            async function mctsMakeMove() {
-                const aiStatusEl = document.getElementById('aiStatus');
-                if (aiStatusEl) aiStatusEl.textContent = 'AI: THINKING...';
-
-                const timeBudget = 220; // ms (tweak: lower for snappier UI, higher for stronger play)
-                const start = performance.now();
-                const rootState = cloneState();
-                const root = new MCTSNode(rootState);
-
-                let iterations = 0;
-                while (performance.now() - start < timeBudget) {
-                    iterations++;
-
-                    let node = root;
-                    // selection
-                    while (node.untried.length === 0 && node.children.length > 0) {
-                        const sel = node.select();
-                        if (!sel) break;
-                        node = sel.node;
-                    }
-
-                    // expansion
-                    if (node.untried.length > 0) node = node.expand() || node;
-
-                    // simulation
-                    const simState = {
-                        layers: node.state.layers.slice(),
-                        isPillar: node.state.isPillar.slice(),
-                        pillarLayers: node.state.pillarLayers.slice(),
-                        player1Id: node.state.player1Id,
-                        player2Id: node.state.player2Id,
-                        locked: new Set(Array.from(node.state.locked)),
-                        currentPlayer: node.state.currentPlayer
-                    };
-                    const winner = randomPlayout(simState, 80);
-
-                    // backprop
-                    let back = node;
-                    while (back) {
-                        back.visits += 1;
-                        if (winner === aiPlayer) back.wins += 1;
-                        else if (winner === null) back.wins += 0.5;
-                        back = back.parent;
-                    }
-
-                    // Yield periodically so the browser can run rAF and keep animations smooth
-                    if ((iterations & 15) === 0) {
-                        // await next animation frame (lighter & more predictable than setTimeout(0))
-                        await new Promise(resolve => requestAnimationFrame(resolve));
-                    }
-                }
-
-                // pick best child by visits (tie-break by win rate)
-                let best = null;
-                let bestVisits = -1;
-                for (const ch of root.children) {
-                    if (ch.node.visits > bestVisits) {
-                        bestVisits = ch.node.visits;
-                        best = ch;
-                    } else if (ch.node.visits === bestVisits) {
-                        const aRate = ch.node.wins / (ch.node.visits || 1);
-                        const bRate = best ? best.node.wins / (best.node.visits || 1) : -1;
-                        if (aRate > bRate) best = ch;
-                    }
-                }
-
-                // restore AI status
-                if (aiStatusEl) {
-                    const aiText = aiEnabled ? `${aiDifficulty.toUpperCase()} (Player ${aiPlayer})` : 'Off';
-                    aiStatusEl.textContent = `AI: ${aiText}`;
-                }
-
-                const myId = getCurrentPlayerId();
-                if (!best) {
-                    const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
-                    if (moves.length === 0) {
-                        currentPlayer = currentPlayer === 1 ? 2 : 1;
-                        render();
-                        scheduleAIMove();
-                        return;
-                    }
-                    performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
-                    return;
-                }
-
-                const chosen = best.action;
-                if (chosen.type === 'knock') {
-                    // knock includes animations internally
-                    knockPillar(myId, chosen.pillar);
-                    currentPlayer = currentPlayer === 1 ? 2 : 1;
-                    render();
-                    scheduleAIMove();
-                    return;
-                } else {
-                    performMoveTo(chosen.to);
-                    return;
-                }
-            }
-
-            async function aiMakeMove() {
+            function aiMakeMove() {
+                /*
+                 * Basic AI:
+                 * - If a pillar is adjacent, 35% chance to knock it.
+                 * - Otherwise choose a random legal move (excluding occupied tiles).
+                 * - Apply the same move side-effects (decrement layers for the tile left,
+                 *   mark locked if layers hit 0, switch currentPlayer, check elimination).
+                 *
+                 * After finishing, call render() and schedule next AI move if appropriate.
+                 */
                 if (!aiEnabled) return;
                 if (currentPlayer !== aiPlayer) return;
                 if (player1Eliminated || player2Eliminated) return;
 
                 const myId = getCurrentPlayerId();
                 const adjPillars = getAdjacentPillars(myId);
-
-                if (aiDifficulty === 'easy') {
-                    if (adjPillars.length > 0 && Math.random() < 0.35) {
-                        await knockPillar(myId, adjPillars[0]);
-                        currentPlayer = currentPlayer === 1 ? 2 : 1;
-                        render();
-                        scheduleAIMove();
-                        return;
-                    }
-                    const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
-                    if (moves.length === 0) {
-                        currentPlayer = currentPlayer === 1 ? 2 : 1;
-                        render();
-                        scheduleAIMove();
-                        return;
-                    }
-                    performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
+                if (adjPillars.length > 0 && Math.random() < 0.35) {
+                    knockPillar(myId, adjPillars[0]);
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    render();
+                    scheduleAIMove();
                     return;
                 }
 
-                if (aiDifficulty === 'medium') {
-                    await mctsMakeMove();
-                    return;
-                }
-
-                // hard falls back to medium for now
-                if (aiDifficulty === 'hard') {
-                    await mctsMakeMove();
-                    return;
-                }
-
-                // final fallback
                 const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
                 if (moves.length === 0) {
                     currentPlayer = currentPlayer === 1 ? 2 : 1;
@@ -1385,7 +1100,9 @@
                     scheduleAIMove();
                     return;
                 }
-                performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
+
+                const chosen = moves[Math.floor(Math.random() * moves.length)];
+                performMoveTo(chosen);
             }
 
             let knockBtn = document.createElement("button");
@@ -1519,13 +1236,6 @@
                 document.getElementById('message').textContent =
                     `Player ${currentPlayer}'s turn. You are on tile #${getCurrentPlayerId() + 1} (row ${p.row + 1}, col ${p.col + 1}). Click a highlighted tile to move.`;
 
-                // update AI status display
-                const aiStatusEl = document.getElementById('aiStatus');
-                if (aiStatusEl) {
-                    const aiText = aiEnabled ? `${aiDifficulty.toUpperCase()} (Player ${aiPlayer})` : 'Off';
-                    aiStatusEl.textContent = `AI: ${aiText}`;
-                }
-
                 // If it's AI's turn, schedule a move
                 scheduleAIMove();
             }
@@ -1536,6 +1246,9 @@
                     const id = parseInt(pt.dataset.id);
                     if ((id === player1Id || id === player2Id)) return;
                     if (!isNaN(id) && getPossibleMoves(getCurrentPlayerId()).includes(id)) {
+                        // start animated move (performMoveTo handles layer decrement + finalization)
+                        performMoveTo(id);
+
                         // start animated move (performMoveTo handles layer decrement + finalization)
                         performMoveTo(id);
                     }
