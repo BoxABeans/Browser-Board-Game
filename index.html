@@ -1,0 +1,1761 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Trifecta - Strategic Board Game</title>
+    <style>
+        :root {
+            --bg: #111;
+            --card: #0f1720;
+            --stroke: #07211a;
+            --tri-fill: #ffffff;
+            --player: #ffcf33;
+            --edge-highlight: #88f;
+            --invalid: #d33;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: linear-gradient(180deg,#0b0f12,#081219);
+            background-attachment: fixed; /* Fix background cutoff */
+            font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;
+            color: #ddd
+        }
+
+        /* Screen management */
+        .screen {
+            display: none;
+        }
+
+            .screen.active {
+                display: flex;
+            }
+
+        /* Main Menu Styles */
+        .menu-screen {
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .menu-title {
+            font-size: 4rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .menu-subtitle {
+            font-size: 1.2rem;
+            color: #a9b7b7;
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .menu-btn {
+            padding: 1.2rem 2rem;
+            border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.1);
+            background: linear-gradient(135deg, rgba(102,126,234,0.2) 0%, rgba(118,75,162,0.2) 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+
+            .menu-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(102,126,234,0.4);
+                border-color: rgba(102,126,234,0.5);
+            }
+
+        /* Content Screen Styles */
+        .content-screen {
+            flex-direction: column;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-y: auto; /* Allow scrolling within content screen */
+        }
+
+        .content-container {
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+            background: rgba(255,255,255,0.02);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+        }
+
+        .content-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 1.5rem;
+        }
+
+        .content-section {
+            margin-bottom: 2rem;
+        }
+
+            .content-section h3 {
+                font-size: 1.5rem;
+                color: #764ba2;
+                margin-bottom: 0.5rem;
+            }
+
+            .content-section p, .content-section ul {
+                color: #a9b7b7;
+                line-height: 1.6;
+            }
+
+            .content-section ul {
+                padding-left: 1.5rem;
+            }
+
+            .content-section li {
+                margin-bottom: 0.5rem;
+            }
+
+        .back-btn {
+            margin-top: 2rem;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            background: #163d3a;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+            .back-btn:hover {
+                background: #1a4d49;
+            }
+
+        /* Game Screen Styles */
+        .game-screen {
+            flex-direction: row;
+            overflow-y: auto; /* Allow scrolling in game screen */
+        }
+
+        .wrap {
+            display: flex;
+            gap: 18px;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .board {
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.2));
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+        }
+
+        svg {
+            display: block
+        }
+
+        .controls {
+            max-width: 360px;
+            padding: 14px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+            border: 1px solid rgba(255,255,255,0.02);
+        }
+
+            .controls h2 {
+                margin: 2px 0 8px 0;
+                font-size: 18px
+            }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0
+        }
+
+        button {
+            flex: 1;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 0;
+            background: #163d3a;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+            button:active {
+                transform: translateY(1px)
+            }
+
+        .info {
+            font-size: 13px;
+            color: #a9b7b7
+        }
+
+        .legend {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+            .legend span {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px
+            }
+
+        .swatch {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            display: inline-block
+        }
+
+        .message {
+            margin-top: 12px;
+            color: #ffd3a6;
+            font-weight: 600
+        }
+
+        footer {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #97a7a7
+        }
+
+        /* Small settings form styles */
+        .settings-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+            .settings-row label {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                color: #d0d7da;
+            }
+
+        .settings-note {
+            font-size: 13px;
+            color: #9fb1b1;
+            margin-top: 8px;
+        }
+
+        /* AI thinking overlay (paste inside the existing <style> in index.html) */
+        .board {
+            position: relative;
+        }
+
+        .ai-overlay {
+            position: absolute;
+            inset: 0;
+            display: none; /* toggle to flex when active */
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.55);
+            z-index: 50;
+            pointer-events: auto; /* intercept clicks while visible */
+        }
+
+            .ai-overlay .panel {
+                display: inline-flex;
+                gap: 10px;
+                align-items: center;
+                background: rgba(255,255,255,0.03);
+                padding: 10px 14px;
+                border-radius: 10px;
+                color: #fff;
+                font-weight: 600;
+                box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+            }
+
+            /* small spinner */
+            .ai-overlay .spinner {
+                width: 18px;
+                height: 18px;
+                border: 3px solid rgba(255,255,255,0.18);
+                border-top-color: #fff;
+                border-radius: 50%;
+                animation: ai-spin 1s linear infinite;
+            }
+
+        @keyframes ai-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+<script type="text/javascript" nonce="9dd8f32e56a94213bf84faf1a84" src="//local.adguard.org?ts=1766205929968&amp;type=content-script&amp;dmn=cdn.discordapp.com&amp;url=https%3A%2F%2Fcdn.discordapp.com%2Fattachments%2F1431000089232670891%2F1451673620244856976%2Findex.html%3Fex%3D694707e9%26is%3D6945b669%26hm%3D81e87005e3270fdc2fcefd3a3dea723bbdd59f77851bc4a8b738df5a7ff8d801%26&amp;app=brave.exe&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=1&amp;st-dnt"></script><script type="text/javascript" nonce="9dd8f32e56a94213bf84faf1a84" src="//local.adguard.org?ts=1766205929968&amp;name=AdGuard%20Assistant&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;name=Web%20of%20Trust&amp;type=user-script"></script><script type="text/javascript" nonce="c7f91714c755461993751586fa9" src="//local.adguard.org?ts=1764104703445&amp;type=content-script&amp;dmn=cdn.discordapp.com&amp;url=https%3A%2F%2Fcdn.discordapp.com%2Fattachments%2F1431000089232670891%2F1442985199351758918%2Findex.html%3Fex%3D69276c30%26is%3D69261ab0%26hm%3Db7753334576ffb751609f288847c0bb4965354e169cb172204fda593b60b6e28%26&amp;app=brave.exe&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1"></script><script type="text/javascript" nonce="c7f91714c755461993751586fa9" src="//local.adguard.org?ts=1764104703445&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;type=user-script"></script></head>
+<body>
+    <!-- Main Menu Screen -->
+    <div class="screen menu-screen active" id="mainMenuScreen">
+        <h1 class="menu-title">TRIFECTA</h1>
+        <p class="menu-subtitle">Strategic Triangular Warfare</p>
+        <div class="menu-buttons">
+            <button class="menu-btn" onclick="showScreen('game')">▶ Start Game</button>
+            <button class="menu-btn" onclick="showScreen('settings')">⚙ Settings</button>
+            <button class="menu-btn" onclick="showScreen('help')">? How to Play</button>
+            <button class="menu-btn" onclick="showScreen('about')">ℹ About</button>
+        </div>
+    </div>
+
+    <!-- Settings Screen -->
+    <div class="screen content-screen" id="settingsScreen">
+        <div class="content-container">
+            <h2 class="content-title">Settings</h2>
+
+            <!-- AI Toggle & Player Selection -->
+            <div class="content-section">
+                <h3>AI Options</h3>
+                <div class="settings-row">
+                    <label for="aiEnabledCheckbox">
+                        <input type="checkbox" id="aiEnabledCheckbox" checked />
+                        Enable AI
+                    </label>
+                </div>
+
+                <div class="settings-row" style="margin-top: 12px;">
+                    <label for="aiPlayerSelect">AI Controls:</label>
+                    <select id="aiPlayerSelect" style="padding:6px;border-radius:6px;background:#0b1413;color:#fff;border:1px solid rgba(255,255,255,0.04);">
+                        <option value="1">Player 1 (🔵)</option>
+                        <option value="2" selected>Player 2 (🔴)</option>
+                    </select>
+                </div>
+
+                <div class="settings-row" style="margin-top: 12px;">
+                    <label for="aiDifficultySelect">AI Difficulty:</label>
+                    <select id="aiDifficultySelect" style="padding:6px;border-radius:6px;background:#0b1413;color:#fff;border:1px solid rgba(255,255,255,0.04);">
+                        <option value="easy" selected>Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard (Feat. Gemini)</option>
+                    </select>
+                </div>
+
+                <p class="settings-note">Toggle the AI, choose which player it controls, and select difficulty. Changes take effect when you start the next game.</p>
+            </div>
+
+            <button class="back-btn" onclick="showScreen('mainMenu')">← Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Help Screen -->
+    <div class="screen content-screen" id="helpScreen">
+        <div class="content-container">
+            <h2 class="content-title">How to Play</h2>
+
+            <div class="content-section">
+                <h3>Objective</h3>
+                <p>Outmaneuver your opponent on a triangular grid. Win by eliminating your opponent through strategic tile destruction and pillar attacks.</p>
+            </div>
+
+            <div class="content-section">
+                <h3>Game Board</h3>
+                <ul>
+                    <li>54 triangular tiles arranged in a hexagonal pattern</li>
+                    <li>Triangles point up or down alternately</li>
+                    <li>Each tile has layers (health points)</li>
+                    <li>Players start at opposite ends of the board</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>Movement</h3>
+                <ul>
+                    <li>Players alternate turns</li>
+                    <li>Click on a highlighted yellow tile to move there</li>
+                    <li>When you leave a tile, it loses 1 layer</li>
+                    <li>Tiles with 0 layers are destroyed and cannot be used</li>
+                    <li>You cannot move onto pillars or your opponent's tile</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>Pillars</h3>
+                <ul>
+                    <li>Blue/Green structures with their own layer count</li>
+                    <li>When adjacent to a pillar, the "Knock Pillar" button appears</li>
+                    <li>Knocking a pillar damages tiles in the opposite direction (shown in pink)</li>
+                    <li>If your opponent is on a pink tile when you knock, they get pushed back</li>
+                    <li>Pillars can be used strategically to trap opponents</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>Winning</h3>
+                <ul>
+                    <li>Trap your opponent with no valid moves</li>
+                    <li>Knock your opponent off the board with a pillar</li>
+                    <li>Squish your opponent against a pillar</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>Tile Colors</h3>
+                <ul>
+                    <li><strong style="color: #ff8500;">Orange:</strong> 2 layers remaining</li>
+                    <li><strong style="color: #ff0000;">Red:</strong> 1 layer remaining</li>
+                    <li><strong style="color: #330f0a;">Dark:</strong> Destroyed (0 layers)</li>
+                    <li><strong style="color: #fff875;">Yellow:</strong> Valid move</li>
+                    <li><strong style="color: #ff6e6e;">Pink:</strong> Will be hit if you knock pillar</li>
+                </ul>
+            </div>
+
+            <button class="back-btn" onclick="showScreen('mainMenu')">← Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- About Screen -->
+    <div class="screen content-screen" id="aboutScreen">
+        <div class="content-container">
+            <h2 class="content-title">About Trifecta</h2>
+
+            <div class="content-section">
+                <p><strong>Trifecta</strong> is a turn-based strategic board game played on a unique triangular grid.</p>
+            </div>
+
+            <div class="content-section">
+                <h3>Game Design</h3>
+                <p>Combining elements of positional strategy, resource management, and tactical warfare, players must carefully plan their moves to outmaneuver their opponent while managing destructible terrain and deadly pillars.</p>
+            </div>
+
+            <div class="content-section">
+                <h3>Features</h3>
+                <ul>
+                    <li>Unique triangular grid system</li>
+                    <li>Dynamic terrain destruction</li>
+                    <li>Strategic pillar mechanics</li>
+                    <li>2-player local multiplayer</li>
+                    <li>Simple yet deep gameplay</li>
+                </ul>
+            </div>
+
+            <div class="content-section">
+                <h3>AI Integration & Safety</h3>
+                <p>
+                    Hard difficulty uses a remote Gemini model (via a server-side proxy) to provide stronger,
+                    natural-language reasoning. To keep keys secret the game calls a local endpoint (<code>/api/ai/move</code>)
+                    — the proxy must be running for Hard mode to work.
+                </p>
+                <ul>
+                    <li><strong>Hard (Gemini):</strong> Remote model called through a server proxy. The UI shows an overlay while the AI is thinking and disables board clicks.</li>
+                    <li><strong>Fallback:</strong> If the remote AI times out or returns an invalid action the game automatically falls back to the local MCTS (Medium) implementation, preventing illegal moves or unexpected teleportation.</li>
+                    <li><strong>Developer note:</strong> Never store API keys in browser code. Set the key as an environment variable on the server (for example, <code>GOOGLE_API_KEY</code>), and keep any .env files out of version control.</li>
+                </ul>
+                <h3>Version</h3>
+                <p>Version 1.0 - Initial Release</p>
+                <p style="color: #667eea; font-style: italic; margin-top: 1rem;">"In a world of triangles, only the sharpest minds survive."</p>
+            </div>
+
+            <button class="back-btn" onclick="showScreen('mainMenu')">← Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div class="screen game-screen" id="gameScreen">
+        <div class="wrap">
+            <div class="board" id="boardContainer">
+                <div id="aiOverlay" class="ai-overlay" aria-hidden="true">
+                    <div class="panel" role="status" aria-live="polite">
+                        <div class="spinner" aria-hidden="true"></div>
+                        <div id="aiOverlayText">AI is thinking...</div>
+                    </div>
+                </div>
+                <!-- svg will be injected -->
+            </div>
+
+            <div class="controls">
+                <h2>Controls</h2>
+                <!-- AI status (shows difficulty and which player is controlled by AI) -->
+                <div id="aiStatus" class="info" aria-live="polite">AI: Off</div>
+
+                <div class="legend">
+                    <span><i class="swatch" style="background:#7da7d9"></i>Player 1</span>
+                    <span><i class="swatch" style="background:#f69679"></i>Player 2</span>
+                </div>
+                <div class="legend">
+                    <span><i class="swatch" style="background:#ff8500"></i>2 Layers</span>
+                    <span><i class="swatch" style="background:#ff0000"></i>1 Layer</span>
+                    <span><i class="swatch" style="background:#330f0a"></i>Empty</span>
+                </div>
+
+                <div class="message" id="message">Click a direction to move.</div>
+
+                <div class="btn-row" style="margin-top: 1.5rem;">
+                    <button onclick="backToMenu()">← Menu</button>
+                    <button onclick="location.reload()">↻ New Game</button>
+                </div>
+
+                <footer>54 triangular tiles in hexagonal layout</footer>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Screen management
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const targetScreen = document.getElementById(screenId + 'Screen');
+            if (targetScreen) {
+                targetScreen.classList.add('active');
+            }
+
+            // Initialize game when entering game screen
+            if (screenId === 'game' && !window.gameInitialized) {
+                initGame();
+                window.gameInitialized = true;
+            }
+        }
+
+        // Back to menu function
+        function backToMenu() {
+            // Reset game initialization flag
+            window.gameInitialized = false;
+            // Clear the board container
+            const boardContainer = document.getElementById('boardContainer');
+            if (boardContainer) {
+                boardContainer.innerHTML = '';
+            }
+            // Show main menu
+            showScreen('mainMenu');
+        }
+
+        // Game initialization
+        function initGame() {
+            // ...existing code (entire game logic goes here)...
+            const rows = [7, 9, 11, 11, 9, 7];
+            const side = 60;
+            const h = side * Math.sqrt(3) / 2;
+            const stroke = 4;
+
+            const maxRowLen = Math.max(...rows);
+            const svgW = (maxRowLen - 1) * (side * 0.75) + side + 80;
+            const svgH = rows.length * h + 160;
+            const centerX = svgW / 2;
+            const startY = 60;
+
+            const triangles = [];
+            const rowYs = [];
+            let y = startY;
+            const vStep = h * 1.25;
+            for (let r = 0; r < rows.length; r++) {
+                rowYs.push(y);
+                y += vStep;
+            }
+
+            for (let r = 0; r < rows.length; r++) {
+                const n = rows[r];
+                const baseY = rowYs[r];
+                const rowWidth = (n - 1) * (side * 0.75);
+                const startX = centerX - rowWidth / 2;
+                for (let c = 0; c < n; c++) {
+                    const cx = startX + c * (side * 0.75);
+                    const rowStartsUp = r < 3;
+                    const up = ((c + (rowStartsUp ? 0 : 1)) % 2 === 0);
+
+                    let p1, p2, p3;
+                    if (up) {
+                        p1 = [cx - side / 2, baseY + h];
+                        p2 = [cx + side / 2, baseY + h];
+                        p3 = [cx, baseY];
+                    } else {
+                        p1 = [cx - side / 2, baseY];
+                        p2 = [cx + side / 2, baseY];
+                        p3 = [cx, baseY + h];
+                    }
+
+                    triangles.push({
+                        id: triangles.length,
+                        row: r,
+                        col: c,
+                        cx, cy: baseY,
+                        up,
+                        points: [p1, p2, p3],
+                        svg: null,
+                        layers: 2,
+                        isPillar: false,
+                        pillarLayers: 0
+                    });
+                }
+            }
+
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("width", svgW);
+            svg.setAttribute("height", svgH);
+            svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+            svg.style.display = 'block';
+
+            const triGroup = document.createElementNS(svgNS, "g");
+            triGroup.setAttribute("transform", "translate(0,0)");
+            svg.appendChild(triGroup);
+
+            const player1Circle = document.createElementNS(svgNS, "circle");
+            player1Circle.setAttribute("r", side * 0.24);
+            player1Circle.setAttribute("fill", "#7da7d9");
+            player1Circle.setAttribute("stroke", "#000000");
+            player1Circle.setAttribute("stroke-width", 3);
+            svg.appendChild(player1Circle);
+
+            const player2Circle = document.createElementNS(svgNS, "circle");
+            player2Circle.setAttribute("r", side * 0.24);
+            player2Circle.setAttribute("fill", "#f69679");
+            player2Circle.setAttribute("stroke", "#000000");
+            player2Circle.setAttribute("stroke-width", 3);
+            svg.appendChild(player2Circle);
+
+            triangles.forEach(t => {
+                const poly = document.createElementNS(svgNS, "polygon");
+                poly.setAttribute("points", t.points.map(p => p.join(",")).join(" "));
+                poly.setAttribute("fill", "white");
+                poly.setAttribute("stroke", "#0b1816");
+                poly.setAttribute("stroke-width", stroke);
+                poly.setAttribute("vector-effect", "non-scaling-stroke");
+                poly.style.filter = "drop-shadow(0 2px 2px rgba(0,0,0,0.5))";
+                triGroup.appendChild(poly);
+                t.svg = poly;
+                poly.dataset.id = t.id;
+            });
+
+            document.getElementById('boardContainer').appendChild(svg);
+
+            const centroidMap = new Map();
+            function keyFor(x, y) {
+                return (Math.round(x * 100) / 100) + "," + (Math.round(y * 100) / 100);
+            }
+            triangles.forEach(t => {
+                centroidMap.set(keyFor(t.cx, t.cy), t.id);
+            });
+
+            let knockBtn = document.createElement("button");
+
+            function neighborId(fromId, dir) {
+                /*
+                 * Return the triangle id adjacent to triangles[fromId] in direction 'dir'.
+                 * Directions:
+                 *   - "left":   horizontal left neighbor (cx - 0.75*side)
+                 *   - "right":  horizontal right neighbor (cx + 0.75*side)
+                 *   - "vertical": neighbor through the triangle point:
+                 *        - if current triangle points up (t.up === true), vertical neighbor lies below (+1.25*h)
+                 *        - otherwise vertical neighbor lies above (-1.25*h)
+                 *
+                 * Implementation uses centroidMap keyed by rounded "cx,cy" to look up neighbor id.
+                 */
+                const t = triangles[fromId];
+                let vx = 0, vy = 0;
+
+                if (dir === "left") {
+                    vx = -side * 0.75;
+                } else if (dir === "right") {
+                    vx = side * 0.75;
+                } else if (dir === "vertical") {
+                    // vertical offset depends on triangle orientation
+                    vy = t.up ? h * 1.25 : -h * 1.25;
+                } else {
+                    return null;
+                }
+
+                const targetKey = keyFor(t.cx + vx, t.cy + vy);
+                return centroidMap.has(targetKey) ? centroidMap.get(targetKey) : null;
+            }
+
+            let player1Id = 3;
+            let player2Id = triangles.length - 4;
+            let currentPlayer = 1;
+
+            let player1Eliminated = false;
+            let player2Eliminated = false;
+
+            const pillarCount = 4;
+            const startLayers = 3;
+            let placed = 0;
+            function isEdgeTile(t) {
+                return t.row === 0 || t.row === rows.length - 1 ||
+                    t.col === 0 || t.col === rows[t.row] - 1;
+            }
+
+            function isValidPillarTile(t) {
+                if (isEdgeTile(t)) return false;
+                if (t.col === 0 || t.col === rows[t.row] - 2) return false;
+                if (t.isPillar) return false;
+                if (t.id === player1Id || t.id === player2Id) return false;
+                const neighborIds = [
+                    neighborId(t.id, "left"),
+                    neighborId(t.id, "right"),
+                    neighborId(t.id, "vertical")
+                ];
+                for (const nid of neighborIds) {
+                    if (nid !== null && triangles[nid].isPillar) return false;
+                }
+                for (const nid of neighborIds) {
+                    if (nid !== null && isEdgeTile(triangles[nid])) return false;
+                }
+                return true;
+            }
+
+            while (placed < pillarCount) {
+                const idx = Math.floor(Math.random() * triangles.length);
+                const t = triangles[idx];
+                if (isValidPillarTile(t)) {
+                    t.isPillar = true;
+                    t.pillarLayers = Math.floor(startLayers);
+                    placed++;
+                }
+            }
+
+            let lockedTiles = new Set();
+            let highlightedCornerTiles = [];
+            let highlightedAdjacentToCorners = [];
+            let highlightedSharedOfAdjacent = [];
+
+            function getCurrentPlayerId() {
+                return currentPlayer === 1 ? player1Id : player2Id;
+            }
+            function setCurrentPlayerId(id) {
+                if (currentPlayer === 1) player1Id = id;
+                else player2Id = id;
+            }
+
+            function getPossibleMoves(id) {
+                /*
+                 * Return an array of adjacent tile ids that are valid move targets:
+                 * - neighbor exists (not null)
+                 * - neighbor is not locked/destroyed
+                 * - neighbor is not a pillar
+                 *
+                 * Uses neighborId for the three connectivity directions: left, right, vertical.
+                 */
+                return ["left", "right", "vertical"]
+                    .map(dir => neighborId(id, dir))
+                    .filter(nid =>
+                        nid !== null &&
+                        !lockedTiles.has(nid) &&
+                        !triangles[nid].isPillar
+                );
+                nid !== player1Id && nid !== player2Id
+            }
+
+            function normalizeInt(v) {
+                const n = typeof v === 'string' ? v.trim() : v;
+                return Number.isFinite(Number(n)) ? Number(n) : NaN;
+            }
+
+            function isValidAIAction(action) {
+                if (!action || typeof action !== 'object') return false;
+                if (action.type === 'move') {
+                    const tid = normalizeInt(action.to);
+                    if (Number.isNaN(tid)) return false;
+                    if (tid < 0 || tid >= triangles.length) return false;
+                    // must be a legal adjacent move from current player's tile
+                    const myId = getCurrentPlayerId();
+                    const valid = getPossibleMoves(myId);
+                    return valid.includes(tid) && tid !== player1Id && tid !== player2Id;
+                }
+                if (action.type === 'knock') {
+                    const pid = normalizeInt(action.pillar);
+                    if (Number.isNaN(pid)) return false;
+                    if (pid < 0 || pid >= triangles.length) return false;
+                    // must be an adjacent pillar with durability
+                    const myId = getCurrentPlayerId();
+                    const adj = getAdjacentPillars(myId);
+                    return adj.includes(pid) && triangles[pid].pillarLayers > 0;
+                }
+                return false;
+            }
+
+            function getAdjacentPillars(id) {
+                /*
+                 * Return adjacent tile ids that currently contain an active pillar (pillarLayers > 0).
+                 * Useful to show the "Knock Pillar" button and for AI to decide to knock.
+                 */
+                return ["left", "right", "vertical"]
+                    .map(dir => neighborId(id, dir))
+                    .filter(nid => nid !== null && triangles[nid].isPillar && triangles[nid].pillarLayers > 0);
+            }
+
+            function getOtherAdjacentTiles(pillarId, playerId) {
+                // For a pillar, return its adjacent tiles excluding the tile occupied by `playerId`.
+                const neighbors = [
+                    neighborId(pillarId, "left"),
+                    neighborId(pillarId, "right"),
+                    neighborId(pillarId, "vertical")
+                ];
+                return neighbors.filter(nid => nid !== null && nid !== playerId);
+            }
+
+            function getAdjacentToCornerTiles(pillarId, playerId) {
+                /*
+                 * For a pillar being knocked from playerId, compute the "corner" tiles
+                 * and then return tiles adjacent to those corners (these become the green
+                 * tiles shown when knocking a pillar).
+                 */
+                const corners = getOtherAdjacentTiles(pillarId, playerId);
+                let result = [];
+                corners.forEach(cornerId => {
+                    getNeighbors(cornerId).forEach(nid => {
+                        if (nid !== pillarId && nid !== playerId && !corners.includes(nid)) {
+                            result.push(nid);
+                        }
+                    });
+                });
+                return [...new Set(result)];
+            }
+
+            function getSharedOfAdjacentTiles(pillarId, playerId) {
+                /*
+                 * From the set of green tiles (adjacentToCorner), find tiles that are
+                 * adjacent to more than one green tile. These are the "shared" tiles
+                 * that will be damaged when the pillar is knocked.
+                 */
+                const greenTiles = getAdjacentToCornerTiles(pillarId, playerId);
+                const cornerTiles = getCornerTiles(pillarId, playerId);
+                const neighborCount = {};
+                greenTiles.forEach(greenId => {
+                    getNeighbors(greenId).forEach(nid => {
+                        if (
+                            nid !== pillarId &&
+                            nid !== playerId &&
+                            !greenTiles.includes(nid) &&
+                            !cornerTiles.includes(nid)
+                        ) {
+                            neighborCount[nid] = (neighborCount[nid] || 0) + 1;
+                        }
+                    });
+                });
+                return Object.keys(neighborCount)
+                    .filter(nid => neighborCount[nid] > 1)
+                    .map(nid => parseInt(nid));
+            }
+
+            function getNeighbors(tileId) {
+                // Return all neighbor ids (left, right, vertical) that exist.
+                return ["left", "right", "vertical"]
+                    .map(dir => neighborId(tileId, dir))
+                    .filter(nid => nid !== null);
+            }
+
+            function getCornerTiles(pillarId, playerId) {
+                return getOtherAdjacentTiles(pillarId, playerId);
+            }
+
+            function promiseAnimation(fn) {
+                return new Promise(resolve => fn(resolve));
+            }
+
+            // small helper: animate a polygon pulsing its fill then restoring
+            function promisePulseTile(tileId, color = '#ff6e6e', duration = 300) {
+                const t = triangles[tileId];
+                if (!t || !t.svg) return Promise.resolve();
+                const orig = t.svg.getAttribute('fill') || '#ffffff';
+                return new Promise(resolve => {
+                    t.svg.setAttribute('fill', color);
+                    // quick pulse using timeout; keep it simple and robust
+                    setTimeout(() => {
+                        t.svg.setAttribute('fill', orig);
+                        resolve();
+                    }, duration);
+                });
+            }
+
+            // small helper: bounce the pillar polygon up then back
+            function promisePillarBounce(pillarId, magnitude = 10, duration = 300) {
+                const t = triangles[pillarId];
+                if (!t || !t.svg) return Promise.resolve();
+                const start = performance.now();
+                const total = duration;
+                function step(now, resolve) {
+                    const elapsed = now - start;
+                    const progress = Math.min(1, elapsed / total);
+                    // simple ease-out bounce
+                    const dy = Math.sin(progress * Math.PI) * -magnitude;
+                    t.svg.setAttribute('transform', `translate(0,${dy})`);
+                    if (progress < 1) requestAnimationFrame(n => step(n, resolve));
+                    else {
+                        t.svg.removeAttribute('transform');
+                        resolve();
+                    }
+                }
+                return new Promise(resolve => requestAnimationFrame(n => step(n, resolve)));
+            }
+
+            // reuse animateMove (existing) by wrapping it in a Promise
+            function promiseAnimateMove(circleEl, fromX, fromY, toX, toY, duration = 350) {
+                return new Promise(resolve => animateMove(circleEl, fromX, fromY, toX, toY, duration, resolve));
+            }
+
+            /* -------------
+               NOTE: Chronilogical order of pillar knock process:
+                1. Other tiles adjacent to the knocked pillar are detected (getOtherAdjacentTiles).
+                2. Corner tiles, the tiles adjacent to the other tiles, are identified (getCornerTiles).
+                3. Adjacent to corner tiles are computed (getAdjacentToCornerTiles).
+                4. Shared of adjacent tiles are determined (getSharedOfAdjacentTiles).
+                5. Pillar is knocked, affecting shared tiles and possibly players.
+             * -------------
+             */
+            async function knockPillar(playerId, pillarId) {
+                /*
+                 * Apply pillar knock rules:
+                 * - reduce pillar's pillarLayers; if becomes 0, remove pillar flag
+                 * - compute opposite/shared tiles using getSharedOfAdjacentTiles
+                 * - damage those tiles (reduce layers) and lock them when layers hit 0
+                 * - if a damaged tile contains a player, attempt to push them to an adjacent valid tile
+                 *   - if no valid push is possible but a pillar sits there, the player is squished (eliminated)
+                 *   - otherwise, if no valid relocations, the player is knocked off (eliminated)
+                 *
+                 * After all effects, call render() to update UI.
+                 */
+                const pillar = triangles[pillarId];
+                if (!pillar || !pillar.isPillar || pillar.pillarLayers <= 0) return;
+
+                // neighbors (left,right,vertical) used to find playerNeighborIndex if needed
+                const neighbors = [
+                    neighborId(pillarId, "left"),
+                    neighborId(pillarId, "right"),
+                    neighborId(pillarId, "vertical")
+                ];
+
+                // Determine affected tiles and any players that will be hit BEFORE state changes,
+                // so we can animate their pushes to computed destinations.
+                const oppositeTiles = getSharedOfAdjacentTiles(pillarId, playerId);
+
+                // For each opposite tile, compute whether a player sits there and whether they'll be pushed and where.
+                const hits = []; // { hitPlayer:1|2, oppId, chosenDest }
+                oppositeTiles.forEach(oppId => {
+                    let hitPlayer = null;
+                    if (player1Id === oppId && !player1Eliminated) hitPlayer = 1;
+                    if (player2Id === oppId && !player2Eliminated) hitPlayer = 2;
+                    if (hitPlayer) {
+                        // Compute push destination choices same as existing logic
+                        const knockAdjacentToCorners = getAdjacentToCornerTiles(pillarId, hitPlayer === 1 ? player1Id : player2Id);
+                        const adjNeighbors = [
+                            neighborId(oppId, "left"),
+                            neighborId(oppId, "right"),
+                            neighborId(oppId, "vertical")
+                        ];
+                        const allAdjacents = adjNeighbors.filter(nid =>
+                            nid !== null &&
+                            !knockAdjacentToCorners.includes(nid) &&
+                            player1Id !== nid && player2Id !== nid
+                        );
+                        const validAdjacents = allAdjacents.filter(nid =>
+                            !lockedTiles.has(nid) &&
+                            !triangles[nid].isPillar
+                        );
+                        const pillarAdjacents = allAdjacents.filter(nid =>
+                            triangles[nid].isPillar
+                        );
+
+                        let chosen = null;
+                        if (validAdjacents.length > 0) {
+                            chosen = validAdjacents[Math.floor(Math.random() * validAdjacents.length)];
+                        } else if (pillarAdjacents.length > 0) {
+                            chosen = "__SQUISHED__";
+                        } else {
+                            chosen = "__KNOCKED_OFF__";
+                        }
+
+                        hits.push({ hitPlayer, oppId, chosen, validAdjacents, pillarAdjacents });
+                    }
+                });
+
+                // Disable input while animating knock sequence
+                isAnimating = true;
+                svg.style.pointerEvents = "none";
+
+                // Animate pillar bounce + pulse opposite tiles in parallel
+                const pulsePromises = oppositeTiles.map(id => promisePulseTile(id, '#ff6e6e', 320));
+                const pillarPromise = promisePillarBounce(pillarId, 10, 360);
+                await Promise.all([pillarPromise, ...pulsePromises]);
+
+                // Now apply state changes (decrement pillar durability, damage tiles)
+                pillar.pillarLayers--;
+                if (pillar.pillarLayers === 0) {
+                    pillar.isPillar = false;
+                }
+
+                oppositeTiles.forEach(oppId => {
+                    if (triangles[oppId] && triangles[oppId].layers > 0) {
+                        triangles[oppId].layers--;
+                        if (triangles[oppId].layers === 0) {
+                            lockedTiles.add(oppId);
+                        }
+                    }
+                });
+
+                // For any hit players, perform push animations to chosen valid destination, then finalize their id or elimination
+                const pushPromises = hits.map(async (hit) => {
+                    if (hit.chosen === "__SQUISHED__") {
+                        // squished: no movement animation; show small red pulse then eliminate
+                        await promisePulseTile(hit.oppId, '#ff3b3b', 360);
+                        if (hit.hitPlayer === 1) {
+                            player1Eliminated = true;
+                            player1Id = -1;
+                        } else {
+                            player2Eliminated = true;
+                            player2Id = -1;
+                        }
+                        // message set below in render()
+                        return;
+                    }
+                    if (hit.chosen === "__KNOCKED_OFF__") {
+                        // knocked off board: pulse then eliminate
+                        await promisePulseTile(hit.oppId, '#ff6e6e', 360);
+                        if (hit.hitPlayer === 1) {
+                            player1Eliminated = true;
+                            player1Id = -1;
+                        } else {
+                            player2Eliminated = true;
+                            player2Id = -1;
+                        }
+                        return;
+                    }
+
+                    // animate the pushed player's circle from their current tile to chosen
+                    const fromTile = triangles[hit.oppId];
+                    const toTile = triangles[hit.chosen];
+                    const circleEl = hit.hitPlayer === 1 ? player1Circle : player2Circle;
+                    const fromX = fromTile.cx;
+                    const fromY = fromTile.cy + 22;
+                    const toX = toTile.cx;
+                    const toY = toTile.cy + 22;
+                    await promiseAnimateMove(circleEl, fromX, fromY, toX, toY, 360);
+
+                    // finalize assignment
+                    if (hit.hitPlayer === 1) player1Id = hit.chosen;
+                    else player2Id = hit.chosen;
+                });
+
+                // Wait for all push animations to complete
+                await Promise.all(pushPromises);
+
+                // Re-enable interactions
+                isAnimating = false;
+                svg.style.pointerEvents = "";
+
+                // If a player was squished or knocked off, set message and potentially disable board (same behavior as before)
+                const anySquished = hits.some(h => h.chosen === "__SQUISHED__");
+                if (anySquished) {
+                    // Use the existing message logic: render will show text and pointerEvents may be toggled
+                    // (we already set elimination flags above)
+                }
+
+                // Finally update UI
+                render();
+
+                if (player1Eliminated || player2Eliminated) {
+                    return;
+                }
+            }
+
+            // ---------------------------
+            // AI configuration & helpers
+            // ---------------------------
+            // Read UI settings (set in Settings screen) so user can toggle AI before starting game.
+            const aiEnabledEl = document.getElementById('aiEnabledCheckbox');
+            const aiPlayerEl = document.getElementById('aiPlayerSelect');
+            const aiDifficultyEl = document.getElementById('aiDifficultySelect');
+
+            const aiEnabled = aiEnabledEl ? aiEnabledEl.checked : true;
+            const aiPlayer = aiPlayerEl ? parseInt(aiPlayerEl.value, 10) : 2;
+            const aiDifficulty = aiDifficultyEl ? aiDifficultyEl.value : 'easy';
+
+            function scheduleAIMove() {
+                // If AI is enabled and it's the AI's turn and game still running, schedule a move
+                if (!aiEnabled) return;
+                if (currentPlayer !== aiPlayer) return;
+                if (player1Eliminated || player2Eliminated) return;
+                // Prevent scheduling while an animation or knock sequence is running
+                if (isAnimating) return;
+                // small randomized delay
+                setTimeout(aiMakeMove, 450 + Math.random() * 700);
+            }
+
+            // ---------------------------
+            // Movement animation helpers
+            // ---------------------------
+            // Adds a smooth slide for player circles. Does not remove existing game comments.
+            let isAnimating = false;
+
+            function animateMove(circleEl, fromX, fromY, toX, toY, duration = 350, onComplete) {
+                const start = performance.now();
+                function easeInOut(t) {
+                    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                }
+                function step(now) {
+                    const elapsed = now - start;
+                    let t = Math.min(1, elapsed / duration);
+                    const eased = easeInOut(t);
+                    const x = fromX + (toX - fromX) * eased;
+                    const y = fromY + (toY - fromY) * eased;
+                    circleEl.setAttribute('cx', x);
+                    circleEl.setAttribute('cy', y);
+                    if (t < 1) requestAnimationFrame(step);
+                    else if (onComplete) onComplete();
+                }
+                requestAnimationFrame(step);
+            }
+
+            function performMoveTo(targetId) {
+                // Defensive guard: abort if target is currently occupied by either player.
+                if (targetId === player1Id || targetId === player2Id) {
+                    // If AI attempted an invalid move, just end its turn safely.
+                    // Allow render/scheduling to continue so game doesn't hang.
+                    scheduleAIMove();
+                    return;
+                }
+
+                // Prevent starting another animation while one is running
+                if (isAnimating) return;
+
+                const prevId = getCurrentPlayerId();
+
+                // apply tile leave effects immediately (layers decrement)
+                triangles[prevId].layers = Math.max(0, triangles[prevId].layers - 1);
+                if (triangles[prevId].layers === 0) {
+                    lockedTiles.add(prevId);
+                }
+
+                const from = triangles[prevId];
+                const to = triangles[targetId];
+                const circleEl = currentPlayer === 1 ? player1Circle : player2Circle;
+                const fromX = from.cx;
+                const fromY = from.cy + 22;
+                const toX = to.cx;
+                const toY = to.cy + 22;
+
+                isAnimating = true;
+                // disable pointer events while animating to avoid input races
+                svg.style.pointerEvents = "none";
+
+                animateMove(circleEl, fromX, fromY, toX, toY, 350, () => {
+                    // finalize move after animation
+                    setCurrentPlayerId(targetId);
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+
+                    const canKnockPillar = getAdjacentPillars(getCurrentPlayerId()).length > 0;
+                    if (getPossibleMoves(getCurrentPlayerId()).length === 0 && !canKnockPillar) {
+                        if (currentPlayer === 1) player1Eliminated = true;
+                        else player2Eliminated = true;
+                    }
+
+                    isAnimating = false;
+                    svg.style.pointerEvents = "";
+                    render();
+                    scheduleAIMove();
+                });
+            }
+
+            // ---------------------------
+            // MCTS (Medium AI) implementation
+            // ---------------------------
+            function cloneState() {
+                return {
+                    layers: triangles.map(t => t.layers),
+                    isPillar: triangles.map(t => !!t.isPillar),
+                    pillarLayers: triangles.map(t => t.pillarLayers || 0),
+                    player1Id: player1Id,
+                    player2Id: player2Id,
+                    locked: new Set(Array.from(lockedTiles)),
+                    currentPlayer: currentPlayer
+                };
+            }
+
+            function getActionsFromState(state) {
+                const pos = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
+                const otherPos = state.currentPlayer === 1 ? state.player2Id : state.player1Id;
+                if (pos == null || pos < 0) return [];
+                const neighborIds = ["left", "right", "vertical"].map(dir => neighborId(pos, dir));
+                // Exclude moves that land on the other player's current position.
+                const moves = neighborIds
+                    .filter(nid => nid !== null && nid !== otherPos && !state.locked.has(nid) && !state.isPillar[nid])
+                    .map(nid => ({ type: 'move', to: nid }));
+                const knocks = neighborIds
+                    .filter(nid => nid !== null && state.isPillar[nid] && state.pillarLayers[nid] > 0)
+                    .map(nid => ({ type: 'knock', pillar: nid }));
+                return knocks.concat(moves);
+            }
+
+            function applyActionToState(state, action) {
+                if (action.type === 'move') {
+                    const prev = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
+                    const opponentPos = state.currentPlayer === 1 ? state.player2Id : state.player1Id;
+                    // Defensive: ignore moves that would land on the opponent (shouldn't be generated, but be safe).
+                    if (action.to === opponentPos) {
+                        return state;
+                    }
+                    if (prev >= 0 && state.layers[prev] > 0) {
+                        state.layers[prev] = Math.max(0, state.layers[prev] - 1);
+                        if (state.layers[prev] === 0) state.locked.add(prev);
+                    }
+                    if (state.currentPlayer === 1) state.player1Id = action.to;
+                    else state.player2Id = action.to;
+                    state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
+                    return state;
+                }
+
+                if (action.type === 'knock') {
+                    const pillarId = action.pillar;
+                    state.pillarLayers[pillarId] = Math.max(0, state.pillarLayers[pillarId] - 1);
+                    if (state.pillarLayers[pillarId] === 0) state.isPillar[pillarId] = false;
+
+                    const actingTile = state.currentPlayer === 1 ? state.player1Id : state.player2Id;
+                    const shared = getSharedOfAdjacentTiles(pillarId, actingTile);
+                    shared.forEach(oppId => {
+                        if (state.layers[oppId] > 0) {
+                            state.layers[oppId] = Math.max(0, state.layers[oppId] - 1);
+                            if (state.layers[oppId] === 0) state.locked.add(oppId);
+                        }
+                    });
+
+                    // push logic (same simplified rules as game)
+                    shared.forEach(oppId => {
+                        if (state.player1Id === oppId) {
+                            const knockAdj = getAdjacentToCornerTiles(pillarId, state.player1Id);
+                            const adj = [neighborId(oppId, "left"), neighborId(oppId, "right"), neighborId(oppId, "vertical")];
+                            const allAdj = adj.filter(nid => nid !== null && !knockAdj.includes(nid) && state.player1Id !== nid && state.player2Id !== nid);
+                            const validAdj = allAdj.filter(nid => !state.locked.has(nid) && !state.isPillar[nid]);
+                            const pillarAdj = allAdj.filter(nid => state.isPillar[nid]);
+                            if (validAdj.length > 0) state.player1Id = validAdj[Math.floor(Math.random() * validAdj.length)];
+                            else if (pillarAdj.length > 0) state.player1Id = -1;
+                            else state.player1Id = -1;
+                        }
+                        if (state.player2Id === oppId) {
+                            const knockAdj = getAdjacentToCornerTiles(pillarId, state.player2Id);
+                            const adj = [neighborId(oppId, "left"), neighborId(oppId, "right"), neighborId(oppId, "vertical")];
+                            const allAdj = adj.filter(nid => nid !== null && !knockAdj.includes(nid) && state.player1Id !== nid && state.player2Id !== nid);
+                            const validAdj = allAdj.filter(nid => !state.locked.has(nid) && !state.isPillar[nid]);
+                            const pillarAdj = allAdj.filter(nid => state.isPillar[nid]);
+                            if (validAdj.length > 0) state.player2Id = validAdj[Math.floor(Math.random() * validAdj.length)];
+                            else if (pillarAdj.length > 0) state.player2Id = -1;
+                            else state.player2Id = -1;
+                        }
+                    });
+
+                    state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
+                    return state;
+                }
+                return state;
+            }
+
+            function checkWinner(state) {
+                if (state.player1Id === -1 || state.player1Id == null) return 2;
+                if (state.player2Id === -1 || state.player2Id == null) return 1;
+                const cur = state.currentPlayer;
+                const pos = cur === 1 ? state.player1Id : state.player2Id;
+                if (pos < 0) return cur === 1 ? 2 : 1;
+                const neighborIds = ["left", "right", "vertical"].map(dir => neighborId(pos, dir));
+                const hasMove = neighborIds.some(nid => nid !== null && !state.locked.has(nid) && !state.isPillar[nid]);
+                const hasKnock = neighborIds.some(nid => nid !== null && state.isPillar[nid] && state.pillarLayers[nid] > 0);
+                if (!hasMove && !hasKnock) return cur === 1 ? 2 : 1;
+                return null;
+            }
+
+            function randomPlayout(sourceState, maxDepth = 80) {
+                const state = {
+                    layers: sourceState.layers.slice(),
+                    isPillar: sourceState.isPillar.slice(),
+                    pillarLayers: sourceState.pillarLayers.slice(),
+                    player1Id: sourceState.player1Id,
+                    player2Id: sourceState.player2Id,
+                    locked: new Set(Array.from(sourceState.locked)),
+                    currentPlayer: sourceState.currentPlayer
+                };
+                for (let depth = 0; depth < maxDepth; depth++) {
+                    const w = checkWinner(state);
+                    if (w) return w;
+                    const acts = getActionsFromState(state);
+                    if (acts.length === 0) return state.currentPlayer === 1 ? 2 : 1;
+                    const a = acts[Math.floor(Math.random() * acts.length)];
+                    applyActionToState(state, a);
+                }
+                const s1 = (state.player1Id >= 0) ? state.layers[state.player1Id] || 0 : 0;
+                const s2 = (state.player2Id >= 0) ? state.layers[state.player2Id] || 0 : 0;
+                if (s1 === s2) return null;
+                return s1 > s2 ? 1 : 2;
+            }
+
+            function MCTSNode(state, parent = null, actionFromParent = null) {
+                this.state = state;
+                this.parent = parent;
+                this.actionFromParent = actionFromParent;
+                this.children = [];
+                this.visits = 0;
+                this.wins = 0;
+                this.untried = getActionsFromState(state);
+            }
+            MCTSNode.prototype.select = function () {
+                const C = Math.sqrt(2);
+                let best = null, bestVal = -Infinity;
+                for (const ch of this.children) {
+                    const n = ch.node;
+                    const winRate = n.wins / (n.visits || 1);
+                    const uct = winRate + C * Math.sqrt(Math.log(this.visits + 1) / (n.visits + 1));
+                    if (uct > bestVal) { bestVal = uct; best = ch; }
+                }
+                return best;
+            };
+            MCTSNode.prototype.expand = function () {
+                if (this.untried.length === 0) return null;
+                const idx = Math.floor(Math.random() * this.untried.length);
+                const action = this.untried.splice(idx, 1)[0];
+                const nextState = {
+                    layers: this.state.layers.slice(),
+                    isPillar: this.state.isPillar.slice(),
+                    pillarLayers: this.state.pillarLayers.slice(),
+                    player1Id: this.state.player1Id,
+                    player2Id: this.state.player2Id,
+                    locked: new Set(Array.from(this.state.locked)),
+                    currentPlayer: this.state.currentPlayer
+                };
+                applyActionToState(nextState, action);
+                const child = new MCTSNode(nextState, this, action);
+                this.children.push({ action, node: child });
+                return child;
+            };
+
+            async function mctsMakeMove() {
+                const aiStatusEl = document.getElementById('aiStatus');
+                if (aiStatusEl) aiStatusEl.textContent = 'AI: THINKING...';
+
+                const timeBudget = 220; // ms (tweak: lower for snappier UI, higher for stronger play)
+                const start = performance.now();
+                const rootState = cloneState();
+                const root = new MCTSNode(rootState);
+
+                let iterations = 0;
+                while (performance.now() - start < timeBudget) {
+                    iterations++;
+
+                    let node = root;
+                    // selection
+                    while (node.untried.length === 0 && node.children.length > 0) {
+                        const sel = node.select();
+                        if (!sel) break;
+                        node = sel.node;
+                    }
+
+                    // expansion
+                    if (node.untried.length > 0) node = node.expand() || node;
+
+                    // simulation
+                    const simState = {
+                        layers: node.state.layers.slice(),
+                        isPillar: node.state.isPillar.slice(),
+                        pillarLayers: node.state.pillarLayers.slice(),
+                        player1Id: node.state.player1Id,
+                        player2Id: node.state.player2Id,
+                        locked: new Set(Array.from(node.state.locked)),
+                        currentPlayer: node.state.currentPlayer
+                    };
+                    const winner = randomPlayout(simState, 80);
+
+                    // backprop
+                    let back = node;
+                    while (back) {
+                        back.visits += 1;
+                        if (winner === aiPlayer) back.wins += 1;
+                        else if (winner === null) back.wins += 0.5;
+                        back = back.parent;
+                    }
+
+                    // Yield periodically so the browser can run rAF and keep animations smooth
+                    if ((iterations & 15) === 0) {
+                        // await next animation frame (lighter & more predictable than setTimeout(0))
+                        await new Promise(resolve => requestAnimationFrame(resolve));
+                    }
+                }
+
+                // pick best child by visits (tie-break by win rate)
+                let best = null;
+                let bestVisits = -1;
+                for (const ch of root.children) {
+                    if (ch.node.visits > bestVisits) {
+                        bestVisits = ch.node.visits;
+                        best = ch;
+                    } else if (ch.node.visits === bestVisits) {
+                        const aRate = ch.node.wins / (ch.node.visits || 1);
+                        const bRate = best ? best.node.wins / (best.node.visits || 1) : -1;
+                        if (aRate > bRate) best = ch;
+                    }
+                }
+
+                // restore AI status
+                if (aiStatusEl) {
+                    const aiText = aiEnabled ? `${aiDifficulty.toUpperCase()} (Player ${aiPlayer})` : 'Off';
+                    aiStatusEl.textContent = `AI: ${aiText}`;
+                }
+
+                const myId = getCurrentPlayerId();
+                if (!best) {
+                    const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
+                    if (moves.length === 0) {
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+                        render();
+                        scheduleAIMove();
+                        return;
+                    }
+                    performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
+                    return;
+                }
+
+                const chosen = best.action;
+                if (chosen.type === 'knock') {
+                    // IMPORTANT: wait for knock animation/logic to finish before toggling player
+                    await knockPillar(myId, chosen.pillar);
+                    // toggle player AFTER the knock completes
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    render();
+                    scheduleAIMove();
+                    return;
+                } else {
+                    performMoveTo(chosen.to);
+                    return;
+                }
+            }
+
+            // replace the existing geminiMakeMove() with this function
+            async function geminiMakeMove() {
+                // Prepare brief state payload (same shape you used before)
+                const state = {
+                    currentPlayer,
+                    aiPlayer,
+                    player1Id,
+                    player2Id,
+                    lockedTiles: Array.from(lockedTiles),
+                    triangles: triangles.map(t => ({
+                        id: t.id,
+                        layers: t.layers,
+                        isPillar: t.isPillar,
+                        pillarLayers: t.pillarLayers
+                    }))
+                };
+
+                const aiStatusEl = document.getElementById('aiStatus');
+                const messageEl = document.getElementById('message');
+                const overlay = document.getElementById('aiOverlay');
+
+                // show overlay (does not change layout)
+                if (overlay) {
+                    overlay.style.display = 'flex';
+                    overlay.setAttribute('aria-hidden', 'false');
+                }
+
+                // Indicate thinking and prevent clicks on the board and knock button
+                if (aiStatusEl) aiStatusEl.textContent = 'AI: THINKING...';
+                svg.style.pointerEvents = 'none';
+                if (typeof knockBtn !== 'undefined') knockBtn.disabled = true;
+
+                try {
+                    // timeout controller so the game doesn't hang waiting for the server
+                    const controller = new AbortController();
+                    const timeoutMs = 5000; // adjust as needed
+                    const t = setTimeout(() => controller.abort(), timeoutMs);
+
+                    const res = await fetch("https://trifecta-gemini-proxy--DIDCoding.replit.app", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(state),
+                        signal: controller.signal
+                    });
+
+                    clearTimeout(t);
+
+                    if (!res.ok) throw new Error(`AI proxy error ${res.status}`);
+
+                    const data = await res.json();
+                    const move = (data && data.action) ? data.action : data;
+
+                    console.log('AI move raw:', move);
+
+                    // validate action before applying it
+                    if (!isValidAIAction(move)) {
+                        console.warn('AI returned invalid action, falling back to MCTS:', move);
+                        if (overlay) { overlay.style.display = 'none'; overlay.setAttribute('aria-hidden', 'true'); }
+                        await mctsMakeMove();
+                        return;
+                    }
+
+                    // hide overlay so animations are visible
+                    if (overlay) { overlay.style.display = 'none'; overlay.setAttribute('aria-hidden', 'true'); }
+
+                    const myId = getCurrentPlayerId();
+
+                    if (move && move.type === "knock") {
+                        // knock handles animations and re-render
+                        await knockPillar(myId, move.pillar);
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+                        render();
+                        scheduleAIMove();
+                        return;
+                    }
+
+                    if (move && move.type === "move") {
+                        // performMoveTo manages isAnimating and pointer events
+                        performMoveTo(move.to);
+                        return;
+                    }
+
+                    // if model returned invalid shape, fall back
+                    throw new Error('Invalid action from AI');
+                } catch (e) {
+                    console.warn("Gemini failed or timed out, falling back to MCTS:", e);
+                    // fallback to local MCTS; mctsMakeMove sets AI status itself
+                    try { await mctsMakeMove(); } catch (inner) { console.error(inner); }
+                } finally {
+                    // clear thinking state and restore interactivity if not animating
+                    if (typeof knockBtn !== 'undefined') knockBtn.disabled = false;
+                    // ensure overlay hidden so layout/placement doesn't remain covered
+                    if (overlay) {
+                            overlay.style.display = 'none';
+                            overlay.setAttribute('aria-hidden', 'true');
+                        }
+                     if (!isAnimating) svg.style.pointerEvents = "";
+                     // restore AI status text
+                    if (aiStatusEl) {
+                        const aiText = aiEnabled ? `${aiDifficulty.toUpperCase()} (Player ${aiPlayer})` : 'Off';
+                        aiStatusEl.textContent = `AI: ${aiText}`;
+                    }
+                    // re-render to refresh message/visuals
+                    render();
+                }
+            }
+
+            async function aiMakeMove() {
+                if (!aiEnabled) return;
+                if (currentPlayer !== aiPlayer) return;
+                if (player1Eliminated || player2Eliminated) return;
+
+                const myId = getCurrentPlayerId();
+                const adjPillars = getAdjacentPillars(myId);
+
+                if (aiDifficulty === 'easy') {
+                    if (adjPillars.length > 0 && Math.random() < 0.35) {
+                        await knockPillar(myId, adjPillars[0]);
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+                        render();
+                        scheduleAIMove();
+                        return;
+                    }
+                    const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
+                    if (moves.length === 0) {
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+                        render();
+                        scheduleAIMove();
+                        return;
+                    }
+                    performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
+                    return;
+                }
+
+                if (aiDifficulty === 'medium') {
+                    await mctsMakeMove();
+                    return;
+                }
+
+                // hard falls back to medium for now
+                if (aiDifficulty === 'hard') {
+                    await geminiMakeMove();
+                    return;
+                }
+
+                // final fallback
+                const moves = getPossibleMoves(myId).filter(nid => nid !== player1Id && nid !== player2Id);
+                if (moves.length === 0) {
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    render();
+                    scheduleAIMove();
+                    return;
+                }
+                performMoveTo(moves[Math.floor(Math.random() * moves.length)]);
+            }
+
+            knockBtn.textContent = "Knock Pillar";
+            knockBtn.style.display = "none";
+            knockBtn.onclick = async function () {
+                const playerId = getCurrentPlayerId();
+                const adjPillars = getAdjacentPillars(playerId);
+                if (adjPillars.length > 0) {
+                    // await the async knock sequence so we don't race with other logic/animations
+                    await knockPillar(playerId, adjPillars[0]);
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    render();
+                    // If next turn is the AI's, schedule it
+                    scheduleAIMove();
+                }
+            };
+            document.querySelector('.controls').insertBefore(knockBtn, document.getElementById('message'));
+
+            function render() {
+                /*
+                 * Central UI update:
+                 * - Clear existing highlight classes
+                 * - Update tile fills (pillar colors, layer colors, locked/destroyed)
+                 * - Show valid moves for the current player (yellow)
+                 * - Show knock button if adjacent pillar exists and set highlighted sets for visuals
+                 * - Update player circles positions and visibility
+                 * - Write message text with current turn / tile information
+                 * - If the game hasn't ended, schedule AI if it's the AI's turn
+                 */
+                triangles.forEach(t => {
+                    t.svg.classList.remove("possible-move");
+                    t.svg.classList.remove("corner-highlight");
+                    t.svg.classList.remove("adjacent-corner-highlight");
+                    t.svg.classList.remove("shared-adjacent-highlight");
+                });
+
+                triangles.forEach(t => {
+                    t.svg.setAttribute("stroke", "#000000");
+                    t.svg.setAttribute("opacity", "1");
+                    if (t.isPillar) {
+                        let color = "#8393ca";
+                        if (t.pillarLayers === 3) color = "#82ca9c";
+                        else if (t.pillarLayers === 2) color = "#6dcff6";
+                        else if (t.pillarLayers === 1) color = "#8393ca";
+                        t.svg.setAttribute("fill", color);
+
+                        if (!t.textEl) {
+                            t.textEl = document.createElementNS(svgNS, "text");
+                            t.textEl.setAttribute("x", t.cx);
+                            t.textEl.setAttribute("y", t.cy + 30);
+                            t.textEl.setAttribute("text-anchor", "middle");
+                            t.textEl.setAttribute("font-size", "22");
+                            t.textEl.setAttribute("fill", "#fff");
+                            svg.appendChild(t.textEl);
+                        }
+                        t.textEl.textContent = t.pillarLayers;
+                        t.textEl.style.display = "";
+                    } else {
+                        if (t.textEl) t.textEl.style.display = "none";
+                        if (lockedTiles.has(t.id)) {
+                            t.svg.setAttribute("fill", "#330f0a");
+                        } else if (t.layers === 2) {
+                            t.svg.setAttribute("fill", "#ff8500");
+                        } else if (t.layers === 1) {
+                            t.svg.setAttribute("fill", "#ff0000");
+                        }
+                    }
+                });
+
+                // Highlight possible moves
+                getPossibleMoves(getCurrentPlayerId()).forEach(nid => {
+                    if (nid !== player1Id && nid !== player2Id) {
+                        const t = triangles[nid];
+                        t.svg.setAttribute("fill", "#fff875");
+                        t.svg.classList.add("possible-move");
+                    }
+                });
+
+                // Pillar highlights and knock button display
+                const adjPillars = getAdjacentPillars(getCurrentPlayerId());
+                knockBtn.style.display = adjPillars.length > 0 ? "" : "none";
+                if (adjPillars.length > 0) {
+                    highlightedCornerTiles = getCornerTiles(adjPillars[0], getCurrentPlayerId());
+                    highlightedAdjacentToCorners = getAdjacentToCornerTiles(adjPillars[0], getCurrentPlayerId());
+                    highlightedSharedOfAdjacent = getSharedOfAdjacentTiles(adjPillars[0], getCurrentPlayerId());
+                } else {
+                    highlightedCornerTiles = [];
+                    highlightedAdjacentToCorners = [];
+                    highlightedSharedOfAdjacent = [];
+                }
+
+                highlightedSharedOfAdjacent.forEach(id => {
+                    if (triangles[id] && triangles[id].svg) {
+                        triangles[id].svg.setAttribute("fill", "#ff6e6e");
+                        triangles[id].svg.classList.add("shared-adjacent-highlight");
+                    }
+                });
+
+                // Update player icon positions only when not animating (animation owns the circle while moving)
+                if (!isAnimating) {
+                    if (!player1Eliminated && player1Id >= 0) {
+                        const t1 = triangles[player1Id];
+                        player1Circle.setAttribute("cx", t1.cx);
+                        player1Circle.setAttribute("cy", t1.cy + 22);
+                        player1Circle.style.display = "";
+                    } else {
+                        player1Circle.style.display = "none";
+                    }
+                    if (!player2Eliminated && player2Id >= 0) {
+                        const t2 = triangles[player2Id];
+                        player2Circle.setAttribute("cx", t2.cx);
+                        player2Circle.setAttribute("cy", t2.cy + 22);
+                        player2Circle.style.display = "";
+                    } else {
+                        player2Circle.style.display = "none";
+                    }
+                }
+
+                // Game over checks and message update
+                const p = triangles[getCurrentPlayerId()];
+                if (player1Eliminated) {
+                    document.getElementById('message').textContent = "Player 2 wins! Player 1 has been eliminated.";
+                    svg.style.pointerEvents = "none";
+                    return;
+                }
+                if (player2Eliminated) {
+                    document.getElementById('message').textContent = "Player 1 wins! Player 2 has been eliminated.";
+                    svg.style.pointerEvents = "none";
+                    return;
+                }
+                document.getElementById('message').textContent =
+                    `Player ${currentPlayer}'s turn. You are on tile #${getCurrentPlayerId() + 1} (row ${p.row + 1}, col ${p.col + 1}). Click a highlighted tile to move.`;
+
+                // update AI status display
+                const aiStatusEl = document.getElementById('aiStatus');
+                if (aiStatusEl) {
+                    const aiText = aiEnabled ? `${aiDifficulty.toUpperCase()} (Player ${aiPlayer})` : 'Off';
+                    aiStatusEl.textContent = `AI: ${aiText}`;
+                }
+
+                // If it's AI's turn, schedule a move
+                scheduleAIMove();
+            }
+
+            svg.addEventListener('click', (ev) => {
+                const pt = ev.target;
+                if (pt.tagName === "polygon") {
+                    const id = parseInt(pt.dataset.id);
+                    if ((id === player1Id || id === player2Id)) return;
+                    if (!isNaN(id) && getPossibleMoves(getCurrentPlayerId()).includes(id)) {
+                        // start animated move (performMoveTo handles layer decrement + finalization)
+                        performMoveTo(id);
+                    }
+                }
+            });
+
+            render();
+        }
+    </script>
+</body>
+</html>
